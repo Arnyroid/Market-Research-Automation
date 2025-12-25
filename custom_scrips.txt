@@ -1,0 +1,32 @@
+# Custom BSE Scrip Codes
+# Add one scrip code per line
+# Lines starting with # are comments
+
+# Blue Chip Stocks
+500325  # Reliance Industries
+500180  # HDFC Bank
+532540  # TCS
+500209  # Infosys
+532174  # ICICI Bank
+
+# IT Sector
+507685  # Wipro
+532281  # HCL Technologies
+532755  # Tech Mahindra
+
+# Banking
+500112  # State Bank of India
+532215  # Axis Bank
+500034  # Bajaj Finance
+
+# Auto
+532500  # Maruti Suzuki
+500570  # Tata Motors
+532454  # Bharti Airtel
+
+# Pharma
+500124  # Dr Reddy's Labs
+532321  # Cipla
+500087  # Sun Pharma
+
+# Add your custom scrips below:
