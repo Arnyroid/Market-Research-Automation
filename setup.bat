@@ -44,5 +44,3 @@ echo   4. Run continuously: python scheduler.py interval
 echo.
 echo For more options, see README.md
 pause
-
-@REM Made with Bob

@@ -49,4 +49,4 @@ STOCK_COLUMNS = [
 MARKET_OPEN_TIME = "09:15"
 MARKET_CLOSE_TIME = "15:30"
 
-# Made with Bob
+ 
