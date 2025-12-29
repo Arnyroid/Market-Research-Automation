@@ -11,5 +11,12 @@ yfinance>=0.2.28
 # Logging and monitoring
 loguru>=0.7.0
 
-# Optional: Database support
+# Database support
 sqlalchemy>=2.0.0
+
+# Excel support
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# Reporting
+tabulate>=0.9.0
