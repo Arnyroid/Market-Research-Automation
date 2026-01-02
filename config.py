@@ -2,7 +2,11 @@
 Configuration settings for BSE Stock Data Automation
 """
 import os
+import sys
 from pathlib import Path
+
+# Platform detection
+PLATFORM = sys.platform
 
 # Project directories
 BASE_DIR = Path(__file__).parent

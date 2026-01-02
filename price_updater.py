@@ -3,32 +3,36 @@ Price Updater Module
 Update portfolio with current prices from BSE
 """
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 from loguru import logger
 import config
 from portfolio_db import PortfolioDB
 from bse_fetcher import BSEStockFetcher
+from alert_manager import AlertManager
 
 
 class PriceUpdater:
     """Update portfolio prices from BSE"""
     
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None, enable_alerts: bool = True):
         """
         Initialize price updater
         
         Args:
             db_path: Path to database file
+            enable_alerts: Enable alert checking on price updates
         """
         self.db = PortfolioDB(db_path)
         self.fetcher = BSEStockFetcher()
+        self.alert_manager = AlertManager(db_path) if enable_alerts else None
+        self.enable_alerts = enable_alerts
         logger.add(
             config.LOG_FILE,
             rotation="1 day",
             retention="30 days",
             level="INFO"
         )
-        logger.info("Price Updater initialized")
+        logger.info(f"Price Updater initialized (Alerts: {'enabled' if enable_alerts else 'disabled'})")
     
     def update_portfolio_prices(self) -> Dict:
         """
@@ -61,6 +65,19 @@ class PriceUpdater:
                     if quote and 'currentValue' in quote:
                         price = float(quote['currentValue'])
                         price_data[scrip_code] = price
+                        
+                        # Get previous price for change calculation
+                        previous_price = None
+                        if not portfolio.empty:
+                            stock_row = portfolio[portfolio['scrip_code'] == scrip_code]
+                            if not stock_row.empty:
+                                previous_price = stock_row.iloc[0]['current_price']
+                        
+                        # Check alerts if enabled
+                        if self.enable_alerts and self.alert_manager:
+                            self.alert_manager.check_price_alerts(
+                                scrip_code, price, previous_price
+                            )
                         
                         # Also save to price history
                         self.db.add_price_history(
@@ -115,10 +132,24 @@ class PriceUpdater:
         try:
             logger.info(f"Updating price for {scrip_code}...")
             
+            # Get previous price
+            previous_price = None
+            portfolio = self.db.get_portfolio()
+            if not portfolio.empty:
+                stock_row = portfolio[portfolio['scrip_code'] == scrip_code]
+                if not stock_row.empty:
+                    previous_price = stock_row.iloc[0]['current_price']
+            
             quote = self.fetcher.fetch_stock_quote(scrip_code)
             
             if quote and 'currentValue' in quote:
                 price = float(quote['currentValue'])
+                
+                # Check alerts if enabled
+                if self.enable_alerts and self.alert_manager:
+                    self.alert_manager.check_price_alerts(
+                        scrip_code, price, previous_price
+                    )
                 
                 # Update portfolio
                 self.db.update_current_prices({scrip_code: price})

@@ -109,6 +109,58 @@ class PortfolioDB:
                 )
             """)
             
+            # Table 4: Alert Rules
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS alert_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scrip_code VARCHAR(10) NOT NULL,
+                    scrip_name VARCHAR(100),
+                    alert_type VARCHAR(20) NOT NULL CHECK(alert_type IN
+                        ('PRICE_CHANGE', 'TARGET_PRICE', 'STOP_LOSS')),
+                    condition VARCHAR(10) NOT NULL CHECK(condition IN
+                        ('ABOVE', 'BELOW', 'CHANGE_UP', 'CHANGE_DOWN')),
+                    threshold_value DECIMAL(10, 2) NOT NULL,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_triggered TIMESTAMP,
+                    notes TEXT
+                )
+            """)
+            
+            # Table 5: Alert History
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS alert_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    alert_rule_id INTEGER NOT NULL,
+                    scrip_code VARCHAR(10) NOT NULL,
+                    scrip_name VARCHAR(100),
+                    alert_type VARCHAR(20) NOT NULL,
+                    trigger_price DECIMAL(10, 2) NOT NULL,
+                    threshold_value DECIMAL(10, 2) NOT NULL,
+                    message TEXT NOT NULL,
+                    triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    notification_sent BOOLEAN DEFAULT 0,
+                    FOREIGN KEY (alert_rule_id) REFERENCES alert_rules(id)
+                )
+            """)
+            
+            # Table 6: Corporate Actions (Dividends, Bonus, Splits)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS corporate_actions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action_date DATE NOT NULL,
+                    scrip_code VARCHAR(10) NOT NULL,
+                    scrip_name VARCHAR(100),
+                    action_type VARCHAR(20) NOT NULL CHECK(action_type IN
+                        ('DIVIDEND', 'BONUS', 'SPLIT', 'RIGHTS')),
+                    quantity INTEGER DEFAULT 0,
+                    amount DECIMAL(10, 2) DEFAULT 0,
+                    ratio VARCHAR(20),
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # Create indexes for better performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_trades_scrip 
@@ -121,8 +173,38 @@ class PortfolioDB:
             """)
             
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_price_history_scrip_date 
+                CREATE INDEX IF NOT EXISTS idx_price_history_scrip_date
                 ON price_history(scrip_code, price_date)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_alert_rules_scrip
+                ON alert_rules(scrip_code)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_alert_rules_active
+                ON alert_rules(is_active)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_alert_history_scrip
+                ON alert_history(scrip_code)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_alert_history_triggered
+                ON alert_history(triggered_at)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_corporate_actions_scrip
+                ON corporate_actions(scrip_code)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_corporate_actions_date
+                ON corporate_actions(action_date)
             """)
             
             self.conn.commit()
