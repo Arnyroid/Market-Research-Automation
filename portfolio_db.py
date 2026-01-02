@@ -144,6 +144,23 @@ class PortfolioDB:
                 )
             """)
             
+            # Table 6: Corporate Actions (Dividends, Bonus, Splits)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS corporate_actions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action_date DATE NOT NULL,
+                    scrip_code VARCHAR(10) NOT NULL,
+                    scrip_name VARCHAR(100),
+                    action_type VARCHAR(20) NOT NULL CHECK(action_type IN
+                        ('DIVIDEND', 'BONUS', 'SPLIT', 'RIGHTS')),
+                    quantity INTEGER DEFAULT 0,
+                    amount DECIMAL(10, 2) DEFAULT 0,
+                    ratio VARCHAR(20),
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # Create indexes for better performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_trades_scrip 
@@ -178,6 +195,16 @@ class PortfolioDB:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_alert_history_triggered
                 ON alert_history(triggered_at)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_corporate_actions_scrip
+                ON corporate_actions(scrip_code)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_corporate_actions_date
+                ON corporate_actions(action_date)
             """)
             
             self.conn.commit()

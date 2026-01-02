@@ -40,7 +40,7 @@ def reset_database(confirm: bool = False):
         cursor = conn.cursor()
         
         # Clear all tables
-        tables = ['trades', 'portfolio', 'price_history', 'alert_rules', 'alert_history']
+        tables = ['trades', 'portfolio', 'price_history', 'alert_rules', 'alert_history', 'corporate_actions']
         
         for table in tables:
             try:
@@ -81,7 +81,7 @@ def reset_specific_table(table_name: str, confirm: bool = False):
     """
     db_path = config.DATA_DIR / "portfolio.db"
     
-    valid_tables = ['trades', 'portfolio', 'price_history', 'alert_rules', 'alert_history']
+    valid_tables = ['trades', 'portfolio', 'price_history', 'alert_rules', 'alert_history', 'corporate_actions']
     
     if table_name not in valid_tables:
         print(f"\n❌ Invalid table name: {table_name}")
