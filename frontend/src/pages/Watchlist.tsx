@@ -50,10 +50,22 @@ export default function WatchlistPage() {
     }
   }
 
+  const [removingId, setRemovingId] = useState<number | null>(null);
+
   async function handleRemove(e: React.MouseEvent, id: number) {
     e.stopPropagation();
-    await watchlistApi.remove(id);
+    if (removingId !== null) return;          // block concurrent deletes
+    setRemovingId(id);
+    // Optimistic removal — update UI immediately before the network round-trip
     setItems(prev => prev.filter(i => i.id !== id));
+    try {
+      await watchlistApi.remove(id);
+    } catch {
+      // If the server call fails, put the item back
+      watchlistApi.list().then(setItems).catch(console.error);
+    } finally {
+      setRemovingId(null);
+    }
   }
 
   return (
@@ -155,7 +167,8 @@ export default function WatchlistPage() {
                   <td className="td text-right">
                     <button
                       onClick={e => handleRemove(e, item.id)}
-                      className="text-gray-600 hover:text-red-400 transition-colors"
+                      disabled={removingId === item.id}
+                      className="text-gray-600 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Trash2 size={15} />
                     </button>

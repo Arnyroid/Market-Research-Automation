@@ -1,38 +1,36 @@
 """
-Unified market data fetcher — abstracts BSE (bsedata) and NSE (nsepython)
-behind a single interface so the rest of the codebase never needs to know
-which exchange it is talking to.
+Unified market data fetcher — uses yfinance for both NSE and BSE quotes.
+
+nsepython / bsedata are no longer used as primary sources because:
+  - NSE's website now requires a live browser session (blocks server-side requests → 403)
+  - bsedata scrip-code lookups are unreliable on yfinance's .BO feed
+
+yfinance ticker conventions used here:
+  NSE  →  {SYMBOL}.NS   e.g. RELIANCE.NS, AXISBANK.NS
+  BSE  →  {SYMBOL}.BO   e.g. RELIANCE.BO  (or fall back to .NS if .BO has no data)
+
+For BSE scrip-code entries (e.g. "500325") yfinance does not work well —
+the code attempts a .BO lookup and, if empty, falls back to a .NS lookup so
+mixed watchlists still work.
 
 Public API
 ----------
   fetch_quote(symbol, exchange)  →  QuoteResult | None
-  fetch_ohlcv(symbol, exchange)  →  OHLCVResult | None
   search_symbols(query)          →  list[SymbolInfo]
 """
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from typing import Optional
 
 from loguru import logger
 
-# ── BSE ───────────────────────────────────────────────────────────────────────
 try:
-    from bsedata.bse import BSE
-    _bse = BSE()
-    BSE_AVAILABLE = True
+    import yfinance as yf
+    YF_AVAILABLE = True
 except Exception:  # pragma: no cover
-    BSE_AVAILABLE = False
-    logger.warning("bsedata not available — BSE quotes will be skipped")
-
-# ── NSE ───────────────────────────────────────────────────────────────────────
-try:
-    import nsepython as nse
-    NSE_AVAILABLE = True
-except Exception:  # pragma: no cover
-    NSE_AVAILABLE = False
-    logger.warning("nsepython not available — NSE quotes will be skipped")
+    YF_AVAILABLE = False
+    logger.warning("yfinance not available — all price fetches will fail")
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -63,25 +61,24 @@ class SymbolInfo:
 
 def fetch_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
     """
-    Fetch a live quote for the given symbol on the given exchange.
+    Fetch a live quote for the given symbol on the given exchange via yfinance.
 
     Parameters
     ----------
-    symbol   : BSE scrip code (e.g. "500325") for BSE,
-               NSE trading symbol (e.g. "RELIANCE") for NSE.
-    exchange : "BSE" or "NSE" (case-insensitive).
+    symbol   : NSE trading symbol (e.g. "RELIANCE") or BSE scrip/symbol (e.g. "500325").
+    exchange : "NSE" or "BSE" (case-insensitive).
 
     Returns None on any failure so callers can decide how to handle gaps.
     """
+    if not YF_AVAILABLE:
+        return None
+
     exchange = exchange.upper()
     try:
         if exchange == "BSE":
-            return _fetch_bse_quote(symbol)
-        elif exchange == "NSE":
-            return _fetch_nse_quote(symbol)
+            return _fetch_yf_quote(symbol, "BSE")
         else:
-            logger.warning(f"Unknown exchange '{exchange}' for symbol '{symbol}'")
-            return None
+            return _fetch_yf_quote(symbol, "NSE")
     except Exception as exc:
         logger.error(f"fetch_quote failed for {symbol}/{exchange}: {exc}")
         return None
@@ -89,147 +86,104 @@ def fetch_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
 
 def search_symbols(query: str) -> list[SymbolInfo]:
     """
-    Search for symbols by name or ticker across both exchanges.
-    Returns up to 20 combined results.
+    Search for symbols by name or ticker.
+    yfinance doesn't offer a free-text search API, so this returns an empty
+    list — the frontend should let users type known symbols directly.
     """
-    results: list[SymbolInfo] = []
-
-    if NSE_AVAILABLE:
-        try:
-            nse_hits = nse.nse_eq(query) if query else []
-            for item in (nse_hits or [])[:10]:
-                results.append(SymbolInfo(
-                    symbol=item.get("symbol", ""),
-                    exchange="NSE",
-                    company_name=item.get("companyName", ""),
-                    sector=item.get("industry", None),
-                ))
-        except Exception as exc:
-            logger.warning(f"NSE symbol search failed: {exc}")
-
-    # BSE doesn't have a free text search via bsedata; fall back to empty
-    return results[:20]
+    return []
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-def _fetch_bse_quote(scrip_code: str) -> Optional[QuoteResult]:
-    if not BSE_AVAILABLE:
-        return None
+def _fetch_yf_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
+    """
+    Fetch a quote using yfinance.
 
-    # bsedata rate-limit: avoid hammering
-    time.sleep(0.2)
+    Ticker suffix strategy:
+      NSE  → try {symbol}.NS; if it looks like a BSE scrip code (all digits)
+             also try {symbol}.BO as fallback
+      BSE  → try {symbol}.BO first; fall back to {symbol}.NS
+             (BSE scrip codes like "500325" are often unavailable on .BO feed)
+    """
+    if exchange == "NSE":
+        # Numeric-only symbols are BSE scrip codes accidentally stored as NSE.
+        # Try .NS first; if that yields nothing and the symbol is all digits,
+        # also attempt .BO so the user doesn't see a blank row.
+        suffixes = [".NS", ".BO"] if symbol.isdigit() else [".NS"]
+    else:
+        suffixes = [".BO", ".NS"]
 
-    raw = _bse.getQuote(scrip_code)
-    if not raw:
-        return None
+    for suffix in suffixes:
+        ticker_str = f"{symbol}{suffix}"
+        result = _yf_ticker_quote(ticker_str, symbol, exchange)
+        if result is not None:
+            return result
 
-    ltp = _to_float(raw.get("currentValue"))
-    if ltp is None:
-        return None
-
-    prev_close = _to_float(raw.get("previousClose"))
-
-    # bsedata 0.6.x uses pChange (already a % string, e.g. "1.61")
-    pct_change = _to_float(raw.get("pChange"))
-
-    # totalTradedQuantity is formatted like "4.60 Lakh" — parse to int
-    volume = _parse_bse_volume(raw.get("totalTradedQuantity", ""))
-
-    return QuoteResult(
-        symbol=scrip_code,
-        exchange="BSE",
-        company_name=raw.get("companyName", ""),
-        ltp=ltp,
-        open=_to_float(raw.get("previousOpen")),   # best proxy; no intraday open field
-        high=_to_float(raw.get("dayHigh")),
-        low=_to_float(raw.get("dayLow")),
-        prev_close=prev_close,
-        volume=volume,
-        pct_change=pct_change,
-    )
+    logger.warning(f"No data returned from yfinance for {symbol}/{exchange}")
+    return None
 
 
-def _fetch_nse_quote(symbol: str) -> Optional[QuoteResult]:
-    if not NSE_AVAILABLE:
-        return None
-
-    time.sleep(0.2)
-
+def _yf_ticker_quote(ticker_str: str, symbol: str, exchange: str) -> Optional[QuoteResult]:
+    """Call yfinance for one ticker string and map to QuoteResult."""
     try:
-        raw = nse.nse_eq(symbol)
-    except Exception:
+        ticker = yf.Ticker(ticker_str)
+
+        # fast_info is the lightweight path — no heavy info dict download
+        fi = ticker.fast_info
+
+        ltp = _safe_float(fi.last_price)
+        if ltp is None or ltp == 0:
+            return None
+
+        prev_close = _safe_float(fi.previous_close)
+        pct_change: float | None = None
+        if ltp and prev_close and prev_close != 0:
+            pct_change = round((ltp - prev_close) / prev_close * 100, 2)
+
+        # Company name — only fetched when fast_info succeeds (cached by yfinance)
+        company_name = ""
+        try:
+            company_name = ticker.info.get("longName") or ticker.info.get("shortName") or ""
+        except Exception:
+            pass
+
+        return QuoteResult(
+            symbol=symbol,
+            exchange=exchange,
+            company_name=company_name,
+            ltp=ltp,
+            open=_safe_float(fi.open),
+            high=_safe_float(fi.day_high),
+            low=_safe_float(fi.day_low),
+            prev_close=prev_close,
+            volume=_safe_int(fi.three_month_average_volume),
+            pct_change=pct_change,
+        )
+    except Exception as exc:
+        logger.debug(f"yfinance lookup failed for {ticker_str}: {exc}")
         return None
-
-    if not raw or "priceInfo" not in raw:
-        return None
-
-    price_info = raw["priceInfo"]
-    ltp = _to_float(price_info.get("lastPrice"))
-    if ltp is None:
-        return None
-
-    prev_close = _to_float(price_info.get("previousClose"))
-    pct_change: float | None = None
-    if ltp and prev_close and prev_close != 0:
-        pct_change = round((ltp - prev_close) / prev_close * 100, 2)
-
-    ohlc = price_info.get("intraDayHighLow", {})
-
-    return QuoteResult(
-        symbol=symbol,
-        exchange="NSE",
-        company_name=raw.get("info", {}).get("companyName", ""),
-        ltp=ltp,
-        open=_to_float(price_info.get("open")),
-        high=_to_float(ohlc.get("max")),
-        low=_to_float(ohlc.get("min")),
-        prev_close=prev_close,
-        volume=_to_int(
-            raw.get("marketDeptOrderBook", {})
-               .get("tradeInfo", {})
-               .get("totalTradedVolume")
-        ),
-        pct_change=pct_change,
-    )
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
-def _to_float(value) -> float | None:
+def _safe_float(value) -> float | None:
     try:
-        if value is None or value == "":
+        if value is None:
             return None
-        return float(str(value).replace(",", ""))
+        f = float(value)
+        # yfinance returns NaN for missing fields
+        import math
+        return None if math.isnan(f) else f
     except (ValueError, TypeError):
         return None
 
 
-def _to_int(value) -> int | None:
+def _safe_int(value) -> int | None:
     try:
-        if value is None or value == "":
+        if value is None:
             return None
-        return int(str(value).replace(",", ""))
+        import math
+        f = float(value)
+        return None if math.isnan(f) else int(f)
     except (ValueError, TypeError):
-        return None
-
-
-def _parse_bse_volume(raw: str) -> int | None:
-    """
-    bsedata 0.6.x returns volume as a human-readable string, e.g.:
-      "4.60 Lakh"  → 460_000
-      "1.23 Cr."   → 12_300_000
-      "500"        → 500
-    """
-    if not raw or raw.strip() in ("-", ""):
-        return None
-    raw = raw.strip()
-    multipliers = {"lakh": 100_000, "cr.": 10_000_000, "cr": 10_000_000}
-    parts = raw.lower().split()
-    try:
-        num = float(parts[0].replace(",", ""))
-        if len(parts) > 1 and parts[1] in multipliers:
-            return round(num * multipliers[parts[1]])
-        return int(num)
-    except (ValueError, IndexError):
         return None

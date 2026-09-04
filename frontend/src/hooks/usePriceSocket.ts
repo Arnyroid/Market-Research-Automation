@@ -17,7 +17,11 @@ export function usePriceSocket(): Map<string, LivePrice> {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
     function connect() {
+      if (cancelled) return;
       const ws = new WebSocket(`${WS_URL}/prices/ws/prices`);
       wsRef.current = ws;
 
@@ -35,13 +39,21 @@ export function usePriceSocket(): Map<string, LivePrice> {
       };
 
       ws.onclose = () => {
-        // Auto-reconnect after 5 s
-        setTimeout(connect, 5_000);
+        if (!cancelled) {
+          // Auto-reconnect after 5 s, but only if this effect is still mounted
+          reconnectTimer = setTimeout(connect, 5_000);
+        }
       };
     }
 
     connect();
-    return () => wsRef.current?.close();
+
+    return () => {
+      // Mark as cancelled so the reconnect timer never opens a new socket
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+    };
   }, []);
 
   return prices;
