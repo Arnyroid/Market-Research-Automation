@@ -229,7 +229,7 @@ def _parse_bse_volume(raw: str) -> int | None:
     try:
         num = float(parts[0].replace(",", ""))
         if len(parts) > 1 and parts[1] in multipliers:
-            return int(num * multipliers[parts[1]])
+            return round(num * multipliers[parts[1]])
         return int(num)
     except (ValueError, IndexError):
         return None
