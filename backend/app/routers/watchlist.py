@@ -1,88 +1,80 @@
-"""
-Watchlist router - endpoints for managing watched stocks
-"""
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List
-from datetime import datetime
-from ..db import get_db
-from ..models import Watchlist, PriceHistory
+"""Watchlist router — CRUD for tracked symbols."""
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/watchlist", tags=["watchlist"])
+from backend.app.core.db import get_db
+from backend.app.models import Watchlist
+from backend.app.services.data_fetch import search_symbols
+
+router = APIRouter()
 
 
-class WatchlistItem(BaseModel):
+# ── Schemas ───────────────────────────────────────────────────────────────────
+
+class WatchlistAdd(BaseModel):
     symbol: str
-    exchange: str  # NSE or BSE
-    
-    class Config:
-        from_attributes = True
+    exchange: str          # NSE | BSE
+    company_name: str | None = None
+    sector: str | None = None
 
 
-class WatchlistResponse(WatchlistItem):
+class WatchlistOut(BaseModel):
     id: int
-    added_at: datetime
+    symbol: str
+    exchange: str
+    company_name: str | None
+    sector: str | None
+    added_at: str
+
+    model_config = {"from_attributes": True}
 
 
-@router.get("", response_model=List[WatchlistResponse])
-async def get_watchlist(db: Session = Depends(get_db)):
-    """Get all watched stocks"""
-    try:
-        items = db.query(Watchlist).all()
-        return items
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("", response_model=list[WatchlistOut])
+def list_watchlist(db: Session = Depends(get_db)):
+    return db.query(Watchlist).order_by(Watchlist.added_at.desc()).all()
 
 
-@router.post("", response_model=WatchlistResponse)
-async def add_to_watchlist(item: WatchlistItem, db: Session = Depends(get_db)):
-    """Add a stock to watchlist"""
-    try:
-        # Check if already exists
-        existing = db.query(Watchlist).filter(Watchlist.symbol == item.symbol).first()
-        if existing:
-            raise HTTPException(status_code=400, detail=f"{item.symbol} already in watchlist")
-        
-        watchlist_entry = Watchlist(
-            symbol=item.symbol,
-            exchange=item.exchange,
-            added_at=datetime.utcnow()
-        )
-        db.add(watchlist_entry)
-        db.commit()
-        db.refresh(watchlist_entry)
-        return watchlist_entry
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+@router.post("", response_model=WatchlistOut, status_code=status.HTTP_201_CREATED)
+def add_to_watchlist(payload: WatchlistAdd, db: Session = Depends(get_db)):
+    exchange = payload.exchange.upper()
+    if exchange not in ("NSE", "BSE"):
+        raise HTTPException(status_code=400, detail="exchange must be NSE or BSE")
+
+    existing = (
+        db.query(Watchlist)
+        .filter(Watchlist.symbol == payload.symbol, Watchlist.exchange == exchange)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Symbol already in watchlist")
+
+    item = Watchlist(
+        symbol=payload.symbol,
+        exchange=exchange,
+        company_name=payload.company_name,
+        sector=payload.sector,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
 
 
-@router.delete("/{watchlist_id}")
-async def remove_from_watchlist(watchlist_id: int, db: Session = Depends(get_db)):
-    """Remove a stock from watchlist"""
-    try:
-        item = db.query(Watchlist).filter(Watchlist.id == watchlist_id).first()
-        if not item:
-            raise HTTPException(status_code=404, detail="Watchlist item not found")
-        
-        db.delete(item)
-        db.commit()
-        return {"message": f"Removed {item.symbol} from watchlist"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_from_watchlist(item_id: int, db: Session = Depends(get_db)):
+    item = db.get(Watchlist, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Watchlist entry not found")
+    db.delete(item)
+    db.commit()
 
 
-@router.get("/{symbol}/exists")
-async def check_in_watchlist(symbol: str, db: Session = Depends(get_db)):
-    """Check if symbol is in watchlist"""
-    try:
-        item = db.query(Watchlist).filter(Watchlist.symbol == symbol).first()
-        return {"exists": item is not None}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/search")
+def search(q: str, db: Session = Depends(get_db)):
+    """Search for symbols by name/ticker (NSE-only via nsepython for now)."""
+    return search_symbols(q)

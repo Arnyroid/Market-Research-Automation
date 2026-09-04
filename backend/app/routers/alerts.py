@@ -1,145 +1,117 @@
-"""
-Alerts router - endpoints for managing price alerts
-"""
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import datetime
-from ..db import get_db
-from ..models import Alert, AlertLog, AlertConditionType
+"""Alerts router — CRUD for price/% alert rules."""
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/alerts", tags=["alerts"])
+from backend.app.core.db import get_db
+from backend.app.models import Alert, AlertLog
 
+router = APIRouter()
+
+_VALID_CONDITIONS = {"price_above", "price_below", "pct_change_up", "pct_change_down"}
+
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class AlertCreate(BaseModel):
     symbol: str
     exchange: str
-    condition_type: AlertConditionType
+    condition_type: str
     threshold: float
+    notes: str | None = None
 
 
 class AlertUpdate(BaseModel):
-    condition_type: Optional[AlertConditionType] = None
-    threshold: Optional[float] = None
-    active: Optional[bool] = None
+    threshold: float | None = None
+    active: bool | None = None
+    notes: str | None = None
 
 
-class AlertResponse(AlertCreate):
+class AlertOut(BaseModel):
     id: int
+    symbol: str
+    exchange: str
+    condition_type: str
+    threshold: float
     active: bool
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
+    notes: str | None
+    created_at: str
+
+    model_config = {"from_attributes": True}
 
 
-class AlertLogResponse(BaseModel):
+class AlertLogOut(BaseModel):
     id: int
     alert_id: int
-    triggered_at: datetime
+    triggered_at: str
     price_at_trigger: float
     notified: bool
-    
-    class Config:
-        from_attributes = True
+
+    model_config = {"from_attributes": True}
 
 
-@router.get("", response_model=List[AlertResponse])
-async def get_alerts(db: Session = Depends(get_db)):
-    """Get all alerts"""
-    try:
-        alerts = db.query(Alert).all()
-        return alerts
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("", response_model=list[AlertOut])
+def list_alerts(active_only: bool = False, db: Session = Depends(get_db)):
+    q = db.query(Alert)
+    if active_only:
+        q = q.filter(Alert.active == True)  # noqa: E712
+    return q.order_by(Alert.created_at.desc()).all()
 
 
-@router.get("/symbol/{symbol}", response_model=List[AlertResponse])
-async def get_alerts_for_symbol(symbol: str, db: Session = Depends(get_db)):
-    """Get alerts for a specific symbol"""
-    try:
-        alerts = db.query(Alert).filter(Alert.symbol == symbol).all()
-        return alerts
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("", response_model=AlertResponse)
-async def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
-    """Create a new alert"""
-    try:
-        new_alert = Alert(
-            symbol=alert.symbol,
-            exchange=alert.exchange,
-            condition_type=alert.condition_type,
-            threshold=alert.threshold,
-            active=True,
-            created_at=datetime.utcnow()
+@router.post("", response_model=AlertOut, status_code=status.HTTP_201_CREATED)
+def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
+    if payload.condition_type not in _VALID_CONDITIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"condition_type must be one of {sorted(_VALID_CONDITIONS)}",
         )
-        db.add(new_alert)
-        db.commit()
-        db.refresh(new_alert)
-        return new_alert
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+    alert = Alert(
+        symbol=payload.symbol,
+        exchange=payload.exchange.upper(),
+        condition_type=payload.condition_type,
+        threshold=payload.threshold,
+        notes=payload.notes,
+    )
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+    return alert
 
 
-@router.put("/{alert_id}", response_model=AlertResponse)
-async def update_alert(alert_id: int, update: AlertUpdate, db: Session = Depends(get_db)):
-    """Update an alert"""
-    try:
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
-        if not alert:
-            raise HTTPException(status_code=404, detail="Alert not found")
-        
-        if update.condition_type is not None:
-            alert.condition_type = update.condition_type
-        if update.threshold is not None:
-            alert.threshold = update.threshold
-        if update.active is not None:
-            alert.active = update.active
-        
-        db.commit()
-        db.refresh(alert)
-        return alert
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+@router.put("/{alert_id}", response_model=AlertOut)
+def update_alert(alert_id: int, payload: AlertUpdate, db: Session = Depends(get_db)):
+    alert = db.get(Alert, alert_id)
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    if payload.threshold is not None:
+        alert.threshold = payload.threshold
+    if payload.active is not None:
+        alert.active = payload.active
+    if payload.notes is not None:
+        alert.notes = payload.notes
+    db.commit()
+    db.refresh(alert)
+    return alert
 
 
-@router.delete("/{alert_id}")
-async def delete_alert(alert_id: int, db: Session = Depends(get_db)):
-    """Delete an alert"""
-    try:
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
-        if not alert:
-            raise HTTPException(status_code=404, detail="Alert not found")
-        
-        db.delete(alert)
-        db.commit()
-        return {"message": "Alert deleted"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+@router.delete("/{alert_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_alert(alert_id: int, db: Session = Depends(get_db)):
+    alert = db.get(Alert, alert_id)
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    db.delete(alert)
+    db.commit()
 
 
-@router.get("/{alert_id}/logs", response_model=List[AlertLogResponse])
-async def get_alert_logs(alert_id: int, db: Session = Depends(get_db)):
-    """Get logs for an alert"""
-    try:
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
-        if not alert:
-            raise HTTPException(status_code=404, detail="Alert not found")
-        
-        logs = db.query(AlertLog).filter(AlertLog.alert_id == alert_id).order_by(AlertLog.triggered_at.desc()).all()
-        return logs
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/{alert_id}/log", response_model=list[AlertLogOut])
+def get_alert_log(alert_id: int, db: Session = Depends(get_db)):
+    return (
+        db.query(AlertLog)
+        .filter(AlertLog.alert_id == alert_id)
+        .order_by(AlertLog.triggered_at.desc())
+        .all()
+    )

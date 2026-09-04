@@ -1,155 +1,217 @@
 """
-Notification service for alerts via Telegram and Email
+Notification delivery — multi-channel, all independent.
+
+Supported channels (configure via NOTIFY_CHANNELS in .env):
+  telegram   — Telegram Bot API (recommended for mobile push)
+  email      — SMTP (Gmail, Outlook, or any server)
+  whatsapp   — WhatsApp via Twilio API (free sandbox for testing)
+  ntfy       — ntfy.sh, zero-signup push to phone via free open-source app
+
+Any combination can be active at once; each fires independently.
+A failure in one channel does not prevent the others from running.
+
+Public API
+----------
+  send_alert_notification(symbol, exchange, condition, threshold, current_price)
+  send_message(text, title="Stock Alert")   ← generic, plain text
 """
-from typing import Optional
-from loguru import logger
-import os
-from dotenv import load_dotenv
+from __future__ import annotations
+
 import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
-load_dotenv()
+import httpx
+from loguru import logger
 
-# Try to import telegram bot
-try:
-    from telegram import Bot
-    TELEGRAM_AVAILABLE = True
-except ImportError:
-    TELEGRAM_AVAILABLE = False
-    logger.warning("python-telegram-bot not available")
+from backend.app.core.config import get_settings
+
+settings = get_settings()
 
 
-class NotifierService:
-    """Service for sending notifications via Telegram and Email"""
-    
-    def __init__(self):
-        self.telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        self.telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
-        self.email_sender = os.getenv("EMAIL_SENDER")
-        self.email_password = os.getenv("EMAIL_PASSWORD")
-        self.email_recipient = os.getenv("EMAIL_RECIPIENT")
-        self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        
-        self.telegram_bot = None
-        if TELEGRAM_AVAILABLE and self.telegram_token:
-            try:
-                self.telegram_bot = Bot(token=self.telegram_token)
-            except Exception as e:
-                logger.error(f"Failed to initialize Telegram bot: {e}")
-    
-    async def send_telegram_notification(self, message: str) -> bool:
-        """
-        Send notification via Telegram
-        
-        Args:
-            message: Message to send
-            
-        Returns:
-            True if successful, False otherwise
-        """
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def send_alert_notification(
+    symbol: str,
+    exchange: str,
+    condition: str,
+    threshold: float,
+    current_price: float,
+) -> None:
+    """Format a stock alert and dispatch it to all configured channels."""
+    condition_labels = {
+        "price_above":     f"crossed above ₹{threshold:,.2f}",
+        "price_below":     f"dropped below ₹{threshold:,.2f}",
+        "pct_change_up":   f"surged +{threshold:.1f}%",
+        "pct_change_down": f"fell -{threshold:.1f}%",
+    }
+    desc = condition_labels.get(condition, f"{condition} {threshold}")
+    title = f"Alert: {symbol} ({exchange})"
+    body  = (
+        f"{symbol} ({exchange}) has {desc}\n"
+        f"Current price: ₹{current_price:,.2f}\n\n"
+        f"This is automated — not financial advice."
+    )
+    send_message(body, title=title)
+
+
+def send_message(text: str, title: str = "Stock Alert") -> None:
+    """
+    Dispatch a message to every channel listed in settings.notify_channels.
+    Channels are tried in parallel (sequentially here for simplicity, but
+    each failure is isolated).
+    """
+    channels = [c.strip().lower() for c in settings.notify_channels if c.strip()]
+
+    if not channels:
+        logger.warning("notify_channels is empty — no notification will be sent")
+        return
+
+    dispatched = 0
+    for channel in channels:
         try:
-            if not self.telegram_bot or not self.telegram_chat_id:
-                logger.warning("Telegram bot or chat ID not configured")
-                return False
-            
-            await self.telegram_bot.send_message(
-                chat_id=self.telegram_chat_id,
-                text=message
-            )
-            logger.info(f"Telegram notification sent: {message[:50]}...")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send Telegram notification: {e}")
-            return False
-    
-    def send_email_notification(self, subject: str, body: str) -> bool:
-        """
-        Send notification via Email
-        
-        Args:
-            subject: Email subject
-            body: Email body
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            if not self.email_sender or not self.email_password or not self.email_recipient:
-                logger.warning("Email credentials not configured")
-                return False
-            
-            msg = MIMEMultipart()
-            msg["From"] = self.email_sender
-            msg["To"] = self.email_recipient
-            msg["Subject"] = subject
-            
-            msg.attach(MIMEText(body, "plain"))
-            
-            # Send email
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.email_sender, self.email_password)
-                server.send_message(msg)
-            
-            logger.info(f"Email notification sent: {subject}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send email notification: {e}")
-            return False
-    
-    def format_alert_message(self, symbol: str, condition: str, price: float, threshold: float) -> str:
-        """
-        Format alert message for notifications
-        
-        Args:
-            symbol: Stock symbol
-            condition: Alert condition (price_above, price_below, etc)
-            price: Current price
-            threshold: Alert threshold
-            
-        Returns:
-            Formatted message
-        """
-        condition_map = {
-            "price_above": f"crossed above ₹{threshold:.2f}",
-            "price_below": f"crossed below ₹{threshold:.2f}",
-            "pct_change": f"changed by {threshold:.2f}%"
-        }
-        
-        condition_text = condition_map.get(condition, f"met condition {condition}")
-        
-        return f"🔔 ALERT: {symbol}\n{condition_text}\nCurrent Price: ₹{price:.2f}"
-    
-    def format_analysis_message(self, symbol: str, analysis: dict) -> str:
-        """
-        Format AI analysis message for notifications
-        
-        Args:
-            symbol: Stock symbol
-            analysis: Analysis dict from AI agent
-            
-        Returns:
-            Formatted message
-        """
-        risk_emoji = {
-            "low": "🟢",
-            "medium": "🟡",
-            "high": "🔴"
-        }
-        
-        risk_flag = analysis.get("risk_flag", "unknown")
-        emoji = risk_emoji.get(risk_flag, "⚪")
-        
-        return f"""📊 AI ANALYSIS: {symbol}
-{emoji} Risk Flag: {risk_flag.upper()}
+            if channel == "telegram":
+                _send_telegram(text)
+                dispatched += 1
+            elif channel == "email":
+                _send_email(title, text)
+                dispatched += 1
+            elif channel == "whatsapp":
+                _send_whatsapp(text)
+                dispatched += 1
+            elif channel == "ntfy":
+                _send_ntfy(title, text)
+                dispatched += 1
+            else:
+                logger.warning(f"Unknown notification channel '{channel}' — skipping")
+        except Exception as exc:
+            logger.error(f"Channel '{channel}' failed: {exc}")
 
-📈 Trend: {analysis.get('trend_summary', 'N/A')}
+    if dispatched == 0:
+        logger.warning("All notification channels failed or were misconfigured")
 
-🔍 Reasoning: {analysis.get('reasoning', 'N/A')}
 
-⚠️ Caveats: {analysis.get('caveats', 'N/A')}
+# ── Telegram ──────────────────────────────────────────────────────────────────
 
----
-⚠️ Educational purposes only. Not financial advice."""
+def _send_telegram(text: str) -> None:
+    """
+    Requires: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+    Setup:  1. Message @BotFather → /newbot → copy token
+            2. Message your bot once, then visit
+               https://api.telegram.org/bot<TOKEN>/getUpdates to get chat_id
+    """
+    if not settings.telegram_bot_token or not settings.telegram_chat_id:
+        logger.warning("Telegram: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set")
+        return
+
+    # Telegram Markdown v1 — wrap in code-safe asterisks
+    md_text = text.replace("_", r"\_")  # escape underscores outside bold
+    url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
+    payload = {
+        "chat_id": settings.telegram_chat_id,
+        "text": md_text,
+        "parse_mode": "Markdown",
+    }
+    resp = httpx.post(url, json=payload, timeout=10)
+    resp.raise_for_status()
+    logger.info("Telegram notification sent")
+
+
+# ── Email (SMTP) ──────────────────────────────────────────────────────────────
+
+def _send_email(subject: str, body: str) -> None:
+    """
+    Requires: SMTP_USER, SMTP_PASSWORD, SMTP_TO
+    Works with Gmail (enable App Passwords), Outlook, or any SMTP server.
+    SMTP_HOST defaults to smtp.gmail.com, SMTP_PORT to 587 (STARTTLS).
+    """
+    if not settings.smtp_user or not settings.smtp_to:
+        logger.warning("Email: SMTP_USER or SMTP_TO not set")
+        return
+
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"]    = settings.smtp_user
+    msg["To"]      = settings.smtp_to
+
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+        server.ehlo()
+        server.starttls()
+        server.login(settings.smtp_user, settings.smtp_password)
+        server.sendmail(settings.smtp_user, [settings.smtp_to], msg.as_string())
+    logger.info("Email notification sent")
+
+
+# ── WhatsApp via Twilio ───────────────────────────────────────────────────────
+
+def _send_whatsapp(text: str) -> None:
+    """
+    Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN,
+              TWILIO_WHATSAPP_FROM, TWILIO_WHATSAPP_TO
+    Free tier: use Twilio sandbox (whatsapp:+14155238886).
+    Setup:  1. Sign up at https://twilio.com (no credit card for sandbox)
+            2. Follow sandbox join instructions in the Twilio console
+            3. Set FROM = whatsapp:+14155238886
+               Set TO   = whatsapp:+91XXXXXXXXXX  (your number)
+    Production: buy a Twilio number with WhatsApp capability.
+    """
+    if not all([
+        settings.twilio_account_sid,
+        settings.twilio_auth_token,
+        settings.twilio_whatsapp_from,
+        settings.twilio_whatsapp_to,
+    ]):
+        logger.warning("WhatsApp: one or more TWILIO_* env vars not set")
+        return
+
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.twilio_account_sid}/Messages.json"
+    resp = httpx.post(
+        url,
+        data={
+            "From": settings.twilio_whatsapp_from,
+            "To":   settings.twilio_whatsapp_to,
+            "Body": text,
+        },
+        auth=(settings.twilio_account_sid, settings.twilio_auth_token),
+        timeout=15,
+    )
+    resp.raise_for_status()
+    logger.info("WhatsApp notification sent")
+
+
+# ── ntfy.sh (zero-signup push) ────────────────────────────────────────────────
+
+def _send_ntfy(title: str, text: str) -> None:
+    """
+    Requires: NTFY_TOPIC  (e.g. "my-stock-alerts-abc123" — make it unguessable)
+    No account, no login needed for the free public ntfy.sh server.
+
+    Setup:
+      1. Install the free ntfy app → https://ntfy.sh  (Android / iOS)
+      2. Tap Subscribe → enter your topic name
+      3. Set NTFY_TOPIC=<that-same-topic> in .env
+      4. Optionally set NTFY_PRIORITY=urgent for banner alerts
+
+    Self-host: set NTFY_SERVER=https://your-ntfy-instance.com
+    Access control: ntfy supports token auth — add NTFY_TOKEN if your
+    server requires it (public ntfy.sh topics don't need one).
+    """
+    if not settings.ntfy_topic:
+        logger.warning("ntfy: NTFY_TOPIC not set — skipping")
+        return
+
+    url = f"{settings.ntfy_server.rstrip('/')}/{settings.ntfy_topic}"
+
+    headers: dict[str, str] = {
+        "Title":    title,
+        "Priority": settings.ntfy_priority,
+        "Tags":     "chart_with_upwards_trend,bell",
+        "Content-Type": "text/plain; charset=utf-8",
+    }
+
+    # Optional bearer-token auth (for self-hosted or protected ntfy topics)
+    if getattr(settings, "ntfy_token", ""):
+        headers["Authorization"] = f"Bearer {settings.ntfy_token}"
+
+    resp = httpx.post(url, content=text.encode("utf-8"), headers=headers, timeout=10)
+    resp.raise_for_status()
+    logger.info(f"ntfy notification sent → {url}")

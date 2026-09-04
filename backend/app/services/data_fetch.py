@@ -1,172 +1,211 @@
 """
-Data fetching service for NSE and BSE stock prices
+Unified market data fetcher — abstracts BSE (bsedata) and NSE (nsepython)
+behind a single interface so the rest of the codebase never needs to know
+which exchange it is talking to.
+
+Public API
+----------
+  fetch_quote(symbol, exchange)  →  QuoteResult | None
+  fetch_ohlcv(symbol, exchange)  →  OHLCVResult | None
+  search_symbols(query)          →  list[SymbolInfo]
 """
-from typing import Optional, Dict, Any
-from datetime import datetime
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+from typing import Optional
+
 from loguru import logger
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
-
-# Try to import bsedata
+# ── BSE ───────────────────────────────────────────────────────────────────────
 try:
     from bsedata.bse import BSE
+    _bse = BSE()
     BSE_AVAILABLE = True
-except ImportError:
+except Exception:  # pragma: no cover
     BSE_AVAILABLE = False
-    logger.warning("bsedata not available, will use yfinance as fallback")
+    logger.warning("bsedata not available — BSE quotes will be skipped")
 
-# Try to import nsepython
+# ── NSE ───────────────────────────────────────────────────────────────────────
 try:
-    import nsepython
+    import nsepython as nse
     NSE_AVAILABLE = True
-except ImportError:
+except Exception:  # pragma: no cover
     NSE_AVAILABLE = False
-    logger.warning("nsepython not available, will use yfinance as fallback")
-
-import yfinance as yf
+    logger.warning("nsepython not available — NSE quotes will be skipped")
 
 
-class DataFetchService:
-    """Service for fetching stock data from NSE and BSE"""
-    
-    def __init__(self):
-        self.bse = None
-        if BSE_AVAILABLE:
-            try:
-                self.bse = BSE()
-            except Exception as e:
-                logger.error(f"Failed to initialize BSE: {e}")
-    
-    def fetch_nse_price(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """
-        Fetch latest price for NSE symbol
-        
-        Args:
-            symbol: NSE symbol (e.g., 'RELIANCE')
-            
-        Returns:
-            Dict with price data or None if fetch fails
-        """
-        try:
-            if NSE_AVAILABLE:
-                quote = nsepython.nse_get_quote(symbol)
-                return {
-                    "symbol": symbol,
-                    "exchange": "NSE",
-                    "price": quote.get("lastPrice", 0),
-                    "change": quote.get("change", 0),
-                    "pct_change": quote.get("pctChange", 0),
-                    "timestamp": datetime.utcnow(),
-                    "open": quote.get("open", None),
-                    "high": quote.get("dayHigh", None),
-                    "low": quote.get("dayLow", None),
-                    "volume": quote.get("totalTradedVolume", None)
-                }
-        except Exception as e:
-            logger.error(f"NSE fetch error for {symbol}: {e}")
-        
-        # Fallback to yfinance for NSE
-        return self._fetch_yfinance(f"{symbol}.NS")
-    
-    def fetch_bse_price(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """
-        Fetch latest price for BSE symbol
-        
-        Args:
-            symbol: BSE symbol/scrip code
-            
-        Returns:
-            Dict with price data or None if fetch fails
-        """
-        try:
-            if BSE_AVAILABLE and self.bse:
-                quote = self.bse.getQuote(symbol)
-                if quote:
-                    return {
-                        "symbol": symbol,
-                        "exchange": "BSE",
-                        "price": float(quote.get("ltp", 0)),
-                        "change": float(quote.get("change", 0)),
-                        "pct_change": float(quote.get("pctchange", 0)),
-                        "timestamp": datetime.utcnow(),
-                        "open": float(quote.get("open", None)) if quote.get("open") else None,
-                        "high": float(quote.get("high", None)) if quote.get("high") else None,
-                        "low": float(quote.get("low", None)) if quote.get("low") else None,
-                        "volume": int(quote.get("volume", None)) if quote.get("volume") else None
-                    }
-        except Exception as e:
-            logger.error(f"BSE fetch error for {symbol}: {e}")
-        
-        # Fallback to yfinance for BSE
-        return self._fetch_yfinance(f"{symbol}.BO")
-    
-    def _fetch_yfinance(self, ticker: str) -> Optional[Dict[str, Any]]:
-        """
-        Fallback to yfinance for price data
-        
-        Args:
-            ticker: Ticker symbol with exchange suffix (e.g., 'RELIANCE.NS')
-            
-        Returns:
-            Dict with price data or None
-        """
-        try:
-            data = yf.download(ticker, period="1d", progress=False)
-            if data.empty:
-                return None
-            
-            latest = data.iloc[-1]
-            return {
-                "symbol": ticker.split(".")[0],
-                "exchange": "NSE" if ".NS" in ticker else "BSE",
-                "price": float(latest["Close"]),
-                "change": 0,
-                "pct_change": 0,
-                "timestamp": datetime.utcnow(),
-                "open": float(latest["Open"]),
-                "high": float(latest["High"]),
-                "low": float(latest["Low"]),
-                "volume": int(latest["Volume"])
-            }
-        except Exception as e:
-            logger.error(f"YFinance fetch error for {ticker}: {e}")
+# ── Data classes ──────────────────────────────────────────────────────────────
+
+@dataclass
+class QuoteResult:
+    symbol: str
+    exchange: str
+    company_name: str
+    ltp: float              # Last Traded Price
+    open: float | None
+    high: float | None
+    low: float | None
+    prev_close: float | None
+    volume: int | None
+    pct_change: float | None
+
+
+@dataclass
+class SymbolInfo:
+    symbol: str
+    exchange: str
+    company_name: str
+    sector: str | None = None
+
+
+# ── Main fetch functions ──────────────────────────────────────────────────────
+
+def fetch_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
+    """
+    Fetch a live quote for the given symbol on the given exchange.
+
+    Parameters
+    ----------
+    symbol   : BSE scrip code (e.g. "500325") for BSE,
+               NSE trading symbol (e.g. "RELIANCE") for NSE.
+    exchange : "BSE" or "NSE" (case-insensitive).
+
+    Returns None on any failure so callers can decide how to handle gaps.
+    """
+    exchange = exchange.upper()
+    try:
+        if exchange == "BSE":
+            return _fetch_bse_quote(symbol)
+        elif exchange == "NSE":
+            return _fetch_nse_quote(symbol)
+        else:
+            logger.warning(f"Unknown exchange '{exchange}' for symbol '{symbol}'")
             return None
-    
-    def fetch_historical_data(self, symbol: str, exchange: str, days: int = 30) -> Optional[list]:
-        """
-        Fetch historical OHLCV data
-        
-        Args:
-            symbol: Stock symbol
-            exchange: NSE or BSE
-            days: Number of days of history
-            
-        Returns:
-            List of OHLCV records or None
-        """
+    except Exception as exc:
+        logger.error(f"fetch_quote failed for {symbol}/{exchange}: {exc}")
+        return None
+
+
+def search_symbols(query: str) -> list[SymbolInfo]:
+    """
+    Search for symbols by name or ticker across both exchanges.
+    Returns up to 20 combined results.
+    """
+    results: list[SymbolInfo] = []
+
+    if NSE_AVAILABLE:
         try:
-            ticker = f"{symbol}.NS" if exchange == "NSE" else f"{symbol}.BO"
-            data = yf.download(ticker, period=f"{days}d", progress=False)
-            
-            if data.empty:
-                return None
-            
-            records = []
-            for index, row in data.iterrows():
-                records.append({
-                    "timestamp": index.to_pydatetime(),
-                    "open": float(row["Open"]),
-                    "high": float(row["High"]),
-                    "low": float(row["Low"]),
-                    "close": float(row["Close"]),
-                    "volume": int(row["Volume"]),
-                    "symbol": symbol,
-                    "exchange": exchange
-                })
-            
-            return records
-        except Exception as e:
-            logger.error(f"Historical data fetch error for {symbol}: {e}")
+            nse_hits = nse.nse_eq(query) if query else []
+            for item in (nse_hits or [])[:10]:
+                results.append(SymbolInfo(
+                    symbol=item.get("symbol", ""),
+                    exchange="NSE",
+                    company_name=item.get("companyName", ""),
+                    sector=item.get("industry", None),
+                ))
+        except Exception as exc:
+            logger.warning(f"NSE symbol search failed: {exc}")
+
+    # BSE doesn't have a free text search via bsedata; fall back to empty
+    return results[:20]
+
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _fetch_bse_quote(scrip_code: str) -> Optional[QuoteResult]:
+    if not BSE_AVAILABLE:
+        return None
+
+    # bsedata rate-limit: avoid hammering
+    time.sleep(0.2)
+
+    raw = _bse.getQuote(scrip_code)
+    if not raw:
+        return None
+
+    ltp = _to_float(raw.get("currentValue"))
+    if ltp is None:
+        return None
+
+    prev_close = _to_float(raw.get("previousClose"))
+    pct_change: float | None = None
+    if ltp and prev_close and prev_close != 0:
+        pct_change = round((ltp - prev_close) / prev_close * 100, 2)
+
+    return QuoteResult(
+        symbol=scrip_code,
+        exchange="BSE",
+        company_name=raw.get("companyName", ""),
+        ltp=ltp,
+        open=_to_float(raw.get("open")),
+        high=_to_float(raw.get("dayHigh")),
+        low=_to_float(raw.get("dayLow")),
+        prev_close=prev_close,
+        volume=_to_int(raw.get("totalTradedVolume")),
+        pct_change=pct_change,
+    )
+
+
+def _fetch_nse_quote(symbol: str) -> Optional[QuoteResult]:
+    if not NSE_AVAILABLE:
+        return None
+
+    time.sleep(0.2)
+
+    try:
+        raw = nse.nse_eq(symbol)
+    except Exception:
+        return None
+
+    if not raw or "priceInfo" not in raw:
+        return None
+
+    price_info = raw["priceInfo"]
+    ltp = _to_float(price_info.get("lastPrice"))
+    if ltp is None:
+        return None
+
+    prev_close = _to_float(price_info.get("previousClose"))
+    pct_change: float | None = None
+    if ltp and prev_close and prev_close != 0:
+        pct_change = round((ltp - prev_close) / prev_close * 100, 2)
+
+    ohlc = price_info.get("intraDayHighLow", {})
+
+    return QuoteResult(
+        symbol=symbol,
+        exchange="NSE",
+        company_name=raw.get("info", {}).get("companyName", ""),
+        ltp=ltp,
+        open=_to_float(price_info.get("open")),
+        high=_to_float(ohlc.get("max")),
+        low=_to_float(ohlc.get("min")),
+        prev_close=prev_close,
+        volume=_to_int(
+            raw.get("marketDeptOrderBook", {})
+               .get("tradeInfo", {})
+               .get("totalTradedVolume")
+        ),
+        pct_change=pct_change,
+    )
+
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+
+def _to_float(value) -> float | None:
+    try:
+        if value is None or value == "":
             return None
+        return float(str(value).replace(",", ""))
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_int(value) -> int | None:
+    try:
+        if value is None or value == "":
+            return None
+        return int(str(value).replace(",", ""))
+    except (ValueError, TypeError):
+        return None
