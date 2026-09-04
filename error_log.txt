@@ -1,72 +1,29 @@
-INFO:     Will watch for changes in these directories: ['D:\\personal\\GitHub\\Market-Research-Automation']
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [19080] using WatchFiles
-INFO:     Started server process [5136]
+INFO:     Started server process [5224]
 INFO:     Waiting for application startup.
-2026-09-04 18:08:43.824 | INFO     | backend.app.main:lifespan:34 - Creating database tables...
-2026-09-04 18:08:43.839 | INFO     | backend.app.main:lifespan:37 - Starting APScheduler...
-2026-09-04 18:08:43.842 | INFO     | backend.app.jobs.scheduler:_build_scheduler:81 - APScheduler configured with all jobs
+2026-09-04 18:20:33.919 | INFO     | backend.app.main:lifespan:34 - Creating database tables...
+2026-09-04 18:20:33.928 | INFO     | backend.app.main:lifespan:37 - Starting APScheduler...
+2026-09-04 18:20:33.934 | INFO     | backend.app.jobs.scheduler:_build_scheduler:81 - APScheduler configured with all jobs
 INFO:     Application startup complete.
-INFO:     127.0.0.1:54848 - "WebSocket /prices/ws/prices" [accepted]
+INFO:     127.0.0.1:51123 - "OPTIONS /watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56317 - "OPTIONS /watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64808 - "WebSocket /prices/ws/prices" [accepted]
 INFO:     connection open
-INFO:     127.0.0.1:61000 - "WebSocket /prices/ws/prices" [accepted]
+INFO:     127.0.0.1:56317 - "GET /watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56317 - "GET /watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "POST /watchlist HTTP/1.1" 201 Created
+INFO:     127.0.0.1:60645 - "OPTIONS /prices/500325/history?exchange=NSE&days=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "OPTIONS /analysis/500325?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "OPTIONS /prices/500325/history?exchange=NSE&days=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "OPTIONS /analysis/500325?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "GET /prices/500325/history?exchange=NSE&days=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "GET /analysis/500325?exchange=NSE HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60645 - "GET /prices/500325/history?exchange=NSE&days=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "GET /analysis/500325?exchange=NSE HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60645 - "GET /watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61391 - "OPTIONS /prices/500325?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "GET /watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61391 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
+INFO:     127.0.0.1:61391 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
+INFO:     127.0.0.1:56277 - "WebSocket /prices/ws/prices" [accepted]
 INFO:     connection open
-INFO:     127.0.0.1:51063 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-INFO:     127.0.0.1:58151 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65519 - "OPTIONS /prices/500325?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58151 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65519 - "OPTIONS /prices/AXISBANK?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58151 - "OPTIONS /prices/500820?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65519 - "OPTIONS /prices/532921?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59172 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-INFO:     127.0.0.1:58151 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:65519 - "GET /prices/AXISBANK?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:62022 - "GET /prices/532921?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:65387 - "GET /prices/500820?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:65519 - "GET /prices/AXISBANK?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:58151 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:62022 - "GET /prices/532921?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:65387 - "GET /prices/500820?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:65387 - "OPTIONS /prices/500325/history?exchange=NSE&days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58151 - "OPTIONS /prices/500325/history?exchange=NSE&days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62022 - "OPTIONS /analysis/500325?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65519 - "OPTIONS /analysis/500325?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65387 - "GET /prices/500325/history?exchange=NSE&days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65387 - "GET /prices/500325/history?exchange=NSE&days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62022 - "GET /analysis/500325?exchange=NSE HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:62022 - "GET /analysis/500325?exchange=NSE HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:53719 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-INFO:     127.0.0.1:58522 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58522 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58563 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-INFO:     127.0.0.1:58522 - "GET /prices/AXISBANK?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:49386 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:56441 - "GET / HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:56441 - "GET /docs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56441 - "GET /openapi.json HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53435 - "GET /prices/500820?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:49386 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:51131 - "GET /prices/532921?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:58522 - "GET /prices/AXISBANK?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:52535 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-INFO:     127.0.0.1:53435 - "GET /prices/500820?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:51131 - "GET /prices/532921?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:58093 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51573 - "OPTIONS /watchlist/4 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63572 - "OPTIONS /watchlist/4 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53135 - "OPTIONS /watchlist/4 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63572 - "DELETE /watchlist/4 HTTP/1.1" 204 No Content
-D:\personal\GitHub\Market-Research-Automation\backend\app\routers\watchlist.py:86: SAWarning: DELETE statement on table 'watchlist' expected to delete 1 row(s); 0 were matched.  Please set confirm_deleted_rows=False within the mapper configuration to prevent this warning.
-  db.commit()
-INFO:     127.0.0.1:51573 - "DELETE /watchlist/4 HTTP/1.1" 204 No Content
-INFO:     127.0.0.1:53135 - "DELETE /watchlist/4 HTTP/1.1" 204 No Content
-INFO:     127.0.0.1:51573 - "OPTIONS /watchlist/3 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53135 - "DELETE /watchlist/4 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:51573 - "DELETE /watchlist/3 HTTP/1.1" 204 No Content
-INFO:     127.0.0.1:51573 - "OPTIONS /watchlist/2 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51573 - "DELETE /watchlist/2 HTTP/1.1" 204 No Conten
+  
