@@ -8,20 +8,60 @@ REM ─────────────────────────�
 echo.
 echo [1/4] Python virtual environment...
 
-REM Accept .venv (preferred) or venv (legacy) — whichever already exists
-if exist .venv\Scripts\activate.bat (
-    echo      Found existing .venv — skipping creation
-    set VENV_DIR=.venv
-) else if exist venv\Scripts\activate.bat (
-    echo      Found existing venv — skipping creation
-    set VENV_DIR=venv
-) else (
-    echo      Creating new virtual environment at .venv ...
+REM ── Locate a Python 3.10+ interpreter ────────────────────────────
+REM Try py launcher first (recommended on Windows), then plain python
+set PY_CMD=
+for %%v in (3.12 3.11 3.10) do (
+    if not defined PY_CMD (
+        py -%%v --version >nul 2>&1 && set PY_CMD=py -%%v
+    )
+)
+if not defined PY_CMD (
     python --version >nul 2>&1
-    if errorlevel 1 (echo ERROR: python not found. Install from python.org && pause && exit /b 1)
-    python -m venv .venv
-    if errorlevel 1 (echo ERROR: failed to create venv && pause && exit /b 1)
+    if not errorlevel 1 set PY_CMD=python
+)
+if not defined PY_CMD (
+    echo ERROR: No Python 3.10+ interpreter found.
+    echo        Install Python 3.12 from https://python.org and re-run.
+    pause && exit /b 1
+)
+echo      Using interpreter: %PY_CMD%
+
+REM ── Check if an existing venv is already Python 3.10+ ─────────────
+set VENV_DIR=
+set REGEN=0
+
+for %%d in (.venv venv) do (
+    if not defined VENV_DIR (
+        if exist %%d\Scripts\activate.bat (
+            REM Read the pyvenv.cfg to check Python version
+            findstr /i "version_info = 3.9" %%d\pyvenv.cfg >nul 2>&1
+            if not errorlevel 1 (
+                echo      Found %%d but it is Python 3.9 — will recreate with %PY_CMD%
+                set VENV_DIR=%%d
+                set REGEN=1
+            ) else (
+                echo      Found existing %%d ^(Python 3.10+^) — skipping creation
+                set VENV_DIR=%%d
+            )
+        )
+    )
+)
+
+REM ── Create or recreate venv ───────────────────────────────────────
+if not defined VENV_DIR (
+    echo      No existing venv found — creating .venv with %PY_CMD% ...
     set VENV_DIR=.venv
+    set REGEN=1
+)
+if "%REGEN%"=="1" (
+    if exist %VENV_DIR% (
+        echo      Removing old venv at %VENV_DIR% ...
+        rmdir /s /q %VENV_DIR%
+    )
+    %PY_CMD% -m venv %VENV_DIR%
+    if errorlevel 1 (echo ERROR: failed to create venv && pause && exit /b 1)
+    echo      Created %VENV_DIR% with %PY_CMD%
 )
 
 echo.
