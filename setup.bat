@@ -9,16 +9,27 @@ echo.
 echo [1/4] Python virtual environment...
 
 REM ── Locate a Python 3.10+ interpreter ────────────────────────────
-REM   py -0  → py launcher picks the highest installed version (any version)
-REM   Fallback to bare "python" for installs without the launcher
+REM   Strategy: ask whichever command is available to print its version,
+REM   then parse major.minor from "Python X.Y.Z" output.
 set PY_CMD=
-py -0 >nul 2>&1
+set PY_VER=
+
+REM Try the py launcher (ships with official Python installs on Windows)
+py --version >nul 2>&1
 if not errorlevel 1 (
-    set PY_CMD=py -0
-) else (
-    python --version >nul 2>&1
-    if not errorlevel 1 set PY_CMD=python
+    set PY_CMD=py
+    for /f "tokens=2" %%V in ('py --version 2^>^&1') do set PY_VER=%%V
 )
+
+REM Fall back to bare "python" if py launcher is not available
+if not defined PY_CMD (
+    python --version >nul 2>&1
+    if not errorlevel 1 (
+        set PY_CMD=python
+        for /f "tokens=2" %%V in ('python --version 2^>^&1') do set PY_VER=%%V
+    )
+)
+
 if not defined PY_CMD (
     echo ERROR: No Python interpreter found.
     echo        Install Python 3.13 from https://python.org and re-run.
@@ -26,7 +37,6 @@ if not defined PY_CMD (
 )
 
 REM ── Verify it is 3.10 or newer ────────────────────────────────────
-for /f "tokens=2" %%V in ('%PY_CMD% --version 2^>^&1') do set PY_VER=%%V
 for /f "tokens=1,2 delims=." %%A in ("%PY_VER%") do (
     set PY_MAJOR=%%A
     set PY_MINOR=%%B
