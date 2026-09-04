@@ -24,6 +24,7 @@ settings = get_settings()
 class QuoteOut(BaseModel):
     symbol: str
     exchange: str
+    company_name: str | None
     ltp: float
     open: float | None
     high: float | None
@@ -55,6 +56,7 @@ def get_quote(symbol: str, exchange: str = "NSE"):
     return QuoteOut(
         symbol=quote.symbol,
         exchange=quote.exchange,
+        company_name=quote.company_name or None,
         ltp=quote.ltp,
         open=quote.open,
         high=quote.high,

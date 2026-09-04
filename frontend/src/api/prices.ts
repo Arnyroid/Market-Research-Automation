@@ -3,6 +3,7 @@ import { apiFetch } from "./client";
 export interface Quote {
   symbol: string;
   exchange: string;
+  company_name: string | null;
   ltp: number;
   open: number | null;
   high: number | null;

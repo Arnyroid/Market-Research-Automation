@@ -28,6 +28,7 @@ export default function StockDetailPage() {
 
   const [history, setHistory]       = useState<OHLCVBar[]>([]);
   const [analysis, setAnalysis]     = useState<Analysis | null>(null);
+  const [quote, setQuote]           = useState<import("../api/prices").Quote | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [aiError, setAiError]       = useState<string | null>(null);
 
@@ -35,6 +36,7 @@ export default function StockDetailPage() {
     if (!symbol) return;
     pricesApi.getHistory(symbol, exchange).then(setHistory).catch(console.error);
     analysisApi.getLatest(symbol, exchange).then(setAnalysis).catch(() => setAnalysis(null));
+    pricesApi.getQuote(symbol, exchange).then(setQuote).catch(() => null);
   }, [symbol, exchange]);
 
   async function handleRefresh() {
@@ -68,21 +70,26 @@ export default function StockDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-white">{symbol}</h1>
-            <span className="text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded font-medium">{exchange}</span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-white">
+              {quote?.company_name || symbol}
+            </h1>
+            <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded font-medium">{exchange}</span>
             {analysis?.risk_flag && (
               <span className={RISK_BADGE[analysis.risk_flag] ?? "badge-medium"}>
                 {analysis.risk_flag.toUpperCase()} RISK
               </span>
             )}
           </div>
-          {ltp && (
-            <p className="text-3xl font-bold text-white mt-1">
-              ₹{ltp.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              {pct1 != null && (
-                <span className={`text-base ml-3 ${pct1 >= 0 ? "gain" : "loss"}`}>
-                  {pct1 >= 0 ? "▲" : "▼"} {Math.abs(pct1).toFixed(2)}%
+          {/* Ticker symbol shown below company name */}
+          <p className="font-mono text-sm text-gray-500 mt-0.5">{symbol}</p>
+          {/* Live price — prefer quote over analysis snapshot */}
+          {(quote?.ltp ?? ltp) && (
+            <p className="text-3xl font-bold text-white mt-2">
+              ₹{(quote?.ltp ?? ltp)!.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              {(quote?.pct_change ?? pct1) != null && (
+                <span className={`text-base ml-3 ${(quote?.pct_change ?? pct1)! >= 0 ? "gain" : "loss"}`}>
+                  {(quote?.pct_change ?? pct1)! >= 0 ? "▲" : "▼"} {Math.abs((quote?.pct_change ?? pct1)!).toFixed(2)}%
                 </span>
               )}
             </p>

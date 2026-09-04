@@ -20,13 +20,22 @@ export default function WatchlistPage() {
       setItems(loaded);
       // Immediately fetch prices for all symbols so the table isn't blank
       // while waiting for the first 60s WebSocket push.
+      // Also use the returned company_name to back-fill any blank names in state.
       loaded.forEach(item => {
         pricesApi.getQuote(item.symbol, item.exchange)
-          .then(q => setRestPrices(prev => {
-            const next = new Map(prev);
-            next.set(`${item.symbol}:${item.exchange}`, q);
-            return next;
-          }))
+          .then(q => {
+            setRestPrices(prev => {
+              const next = new Map(prev);
+              next.set(`${item.symbol}:${item.exchange}`, q);
+              return next;
+            });
+            // If the watchlist row has no company name, fill it from the quote
+            if (!item.company_name && q.company_name) {
+              setItems(prev => prev.map(i =>
+                i.id === item.id ? { ...i, company_name: q.company_name } : i
+              ));
+            }
+          })
           .catch(() => {/* ignore individual quote failures */});
       });
     }).catch(console.error);
@@ -113,9 +122,7 @@ export default function WatchlistPage() {
         <table className="w-full">
           <thead className="bg-gray-800/50">
             <tr>
-              <th className="th">Symbol</th>
-              <th className="th">Exchange</th>
-              <th className="th">Company</th>
+              <th className="th">Script</th>
               <th className="th text-right">LTP</th>
               <th className="th text-right">Change</th>
               <th className="th text-right">1D %</th>
@@ -125,7 +132,7 @@ export default function WatchlistPage() {
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={7} className="td text-center text-gray-500 py-16">
+                <td colSpan={5} className="td text-center text-gray-500 py-16">
                   No symbols yet — add one above to get started.
                 </td>
               </tr>
@@ -137,17 +144,22 @@ export default function WatchlistPage() {
               const live = livePrices.get(key) ?? restPrices.get(key) ?? null;
               const pct  = live?.pct_change ?? null;
               const isUp = pct != null && pct >= 0;
+              const displayName = item.company_name || item.symbol;
               return (
                 <tr
                   key={item.id}
                   onClick={() => navigate(`/stock/${item.symbol}?exchange=${item.exchange}`)}
                   className="hover:bg-gray-800/40 cursor-pointer transition-colors"
                 >
-                  <td className="td font-mono font-semibold text-white">{item.symbol}</td>
                   <td className="td">
-                    <span className="text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded font-medium">{item.exchange}</span>
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-white">{displayName}</span>
+                      <span className="flex items-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-xs text-gray-500">{item.symbol}</span>
+                        <span className="text-xs bg-gray-800 text-gray-500 px-1.5 py-px rounded font-medium">{item.exchange}</span>
+                      </span>
+                    </div>
                   </td>
-                  <td className="td text-gray-300">{item.company_name ?? <span className="text-gray-600">—</span>}</td>
                   <td className="td text-right font-mono text-white">
                     {live ? `₹${live.ltp.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-gray-600">—</span>}
                   </td>
