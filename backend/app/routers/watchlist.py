@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.core.db import get_db
 from backend.app.models import Watchlist
-from backend.app.services.data_fetch import search_symbols
+from backend.app.services.data_fetch import fetch_quote, search_symbols
 
 router = APIRouter()
 
@@ -55,10 +55,20 @@ def add_to_watchlist(payload: WatchlistAdd, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=409, detail="Symbol already in watchlist")
 
+    # Auto-fill company_name from a live quote if the caller didn't provide one
+    company_name = payload.company_name
+    if not company_name:
+        try:
+            quote = fetch_quote(payload.symbol, exchange)
+            if quote and quote.company_name:
+                company_name = quote.company_name
+        except Exception:
+            pass  # Non-fatal — symbol still gets added without a name
+
     item = Watchlist(
         symbol=payload.symbol,
         exchange=exchange,
-        company_name=payload.company_name,
+        company_name=company_name,
         sector=payload.sector,
     )
     db.add(item)
@@ -74,6 +84,30 @@ def remove_from_watchlist(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Watchlist entry not found")
     db.delete(item)
     db.commit()
+
+
+@router.post("/backfill-names", status_code=status.HTTP_200_OK)
+def backfill_company_names(db: Session = Depends(get_db)):
+    """
+    One-shot: fetch company names for any watchlist entry that is missing one.
+    Safe to call multiple times — only updates rows where company_name is null/empty.
+    """
+    rows = (
+        db.query(Watchlist)
+        .filter((Watchlist.company_name == None) | (Watchlist.company_name == ""))
+        .all()
+    )
+    updated = 0
+    for row in rows:
+        try:
+            quote = fetch_quote(row.symbol, row.exchange)
+            if quote and quote.company_name:
+                row.company_name = quote.company_name
+                updated += 1
+        except Exception:
+            pass
+    db.commit()
+    return {"updated": updated, "total": len(rows)}
 
 
 @router.get("/search")

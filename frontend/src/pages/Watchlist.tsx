@@ -2,19 +2,34 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, TrendingUp, TrendingDown, Search } from "lucide-react";
 import { watchlistApi, WatchlistItem } from "../api/watchlist";
+import { pricesApi, Quote } from "../api/prices";
 import { usePriceSocket } from "../hooks/usePriceSocket";
 
 export default function WatchlistPage() {
-  const [items, setItems]       = useState<WatchlistItem[]>([]);
-  const [symbol, setSymbol]     = useState("");
-  const [exchange, setExchange] = useState<"NSE" | "BSE">("NSE");
-  const [adding, setAdding]     = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const livePrices              = usePriceSocket();
-  const navigate                = useNavigate();
+  const [items, setItems]           = useState<WatchlistItem[]>([]);
+  const [restPrices, setRestPrices] = useState<Map<string, Quote>>(new Map());
+  const [symbol, setSymbol]         = useState("");
+  const [exchange, setExchange]     = useState<"NSE" | "BSE">("NSE");
+  const [adding, setAdding]         = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const livePrices                  = usePriceSocket();
+  const navigate                    = useNavigate();
 
   useEffect(() => {
-    watchlistApi.list().then(setItems).catch(console.error);
+    watchlistApi.list().then(loaded => {
+      setItems(loaded);
+      // Immediately fetch prices for all symbols so the table isn't blank
+      // while waiting for the first 60s WebSocket push.
+      loaded.forEach(item => {
+        pricesApi.getQuote(item.symbol, item.exchange)
+          .then(q => setRestPrices(prev => {
+            const next = new Map(prev);
+            next.set(`${item.symbol}:${item.exchange}`, q);
+            return next;
+          }))
+          .catch(() => {/* ignore individual quote failures */});
+      });
+    }).catch(console.error);
   }, []);
 
   async function handleAdd(e: React.FormEvent) {
@@ -104,7 +119,10 @@ export default function WatchlistPage() {
               </tr>
             )}
             {items.map(item => {
-              const live = livePrices.get(`${item.symbol}:${item.exchange}`);
+              const key  = `${item.symbol}:${item.exchange}`;
+              // WebSocket prices take priority once they arrive; REST prices fill
+              // the table immediately on first load.
+              const live = livePrices.get(key) ?? restPrices.get(key) ?? null;
               const pct  = live?.pct_change ?? null;
               const isUp = pct != null && pct >= 0;
               return (

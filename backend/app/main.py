@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from loguru import logger
 
 from backend.app.core.config import get_settings
@@ -68,6 +69,12 @@ app.include_router(analysis.router,          prefix="/analysis",         tags=["
 app.include_router(risk_profile.router,      prefix="/risk-profile",     tags=["Risk Profile"])
 app.include_router(trades.router,            prefix="/trades",           tags=["Trades"])
 app.include_router(corporate_actions.router, prefix="/corporate-actions",tags=["Corporate Actions"])
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    """Redirect browser visits to the interactive API docs."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health", tags=["Health"])
