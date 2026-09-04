@@ -9,23 +9,37 @@ echo.
 echo [1/4] Python virtual environment...
 
 REM ── Locate a Python 3.10+ interpreter ────────────────────────────
-REM Try py launcher first (recommended on Windows), then plain python
+REM   py -0  → py launcher picks the highest installed version (any version)
+REM   Fallback to bare "python" for installs without the launcher
 set PY_CMD=
-for %%v in (3.12 3.11 3.10) do (
-    if not defined PY_CMD (
-        py -%%v --version >nul 2>&1 && set PY_CMD=py -%%v
-    )
-)
-if not defined PY_CMD (
+py -0 >nul 2>&1
+if not errorlevel 1 (
+    set PY_CMD=py -0
+) else (
     python --version >nul 2>&1
     if not errorlevel 1 set PY_CMD=python
 )
 if not defined PY_CMD (
-    echo ERROR: No Python 3.10+ interpreter found.
-    echo        Install Python 3.12 from https://python.org and re-run.
+    echo ERROR: No Python interpreter found.
+    echo        Install Python 3.13 from https://python.org and re-run.
     pause && exit /b 1
 )
-echo      Using interpreter: %PY_CMD%
+
+REM ── Verify it is 3.10 or newer ────────────────────────────────────
+for /f "tokens=2" %%V in ('%PY_CMD% --version 2^>^&1') do set PY_VER=%%V
+for /f "tokens=1,2 delims=." %%A in ("%PY_VER%") do (
+    set PY_MAJOR=%%A
+    set PY_MINOR=%%B
+)
+if %PY_MAJOR% LSS 3 (
+    echo ERROR: Python %PY_VER% is too old. Install Python 3.13+.
+    pause && exit /b 1
+)
+if %PY_MAJOR% EQU 3 if %PY_MINOR% LSS 10 (
+    echo ERROR: Python %PY_VER% is too old. Install Python 3.13+.
+    pause && exit /b 1
+)
+echo      Using interpreter: %PY_CMD% ^(%PY_VER%^)
 
 REM ── Check if an existing venv is already Python 3.10+ ─────────────
 set VENV_DIR=
