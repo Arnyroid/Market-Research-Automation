@@ -1,6 +1,8 @@
 """Risk profile router — GET and PUT for the single-row user risk profile."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,7 +23,7 @@ class RiskProfileOut(BaseModel):
     time_horizon: str
     loss_tolerance: str
     experience_level: str
-    updated_at: str
+    updated_at: datetime
 
     model_config = {"from_attributes": True}
 

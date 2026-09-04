@@ -1,6 +1,8 @@
 """Watchlist router — CRUD for tracked symbols."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -27,7 +29,7 @@ class WatchlistOut(BaseModel):
     exchange: str
     company_name: str | None
     sector: str | None
-    added_at: str
+    added_at: datetime
 
     model_config = {"from_attributes": True}
 

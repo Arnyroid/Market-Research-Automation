@@ -3,6 +3,8 @@ Analysis router — cached AI analysis per symbol and on-demand refresh.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -20,12 +22,12 @@ class AnalysisOut(BaseModel):
     id: int
     symbol: str
     exchange: str
-    generated_at: str
+    generated_at: datetime
     risk_flag: str | None
     indicators_snapshot: dict | None
     structured_output: dict | None
     llm_output: str | None
-    target_review_date: str | None
+    target_review_date: str | None   # stored as YYYY-MM-DD plain string
 
     model_config = {"from_attributes": True}
 

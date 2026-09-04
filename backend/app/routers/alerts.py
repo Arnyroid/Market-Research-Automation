@@ -1,6 +1,8 @@
 """Alerts router — CRUD for price/% alert rules."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -37,7 +39,7 @@ class AlertOut(BaseModel):
     threshold: float
     active: bool
     notes: str | None
-    created_at: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -45,7 +47,7 @@ class AlertOut(BaseModel):
 class AlertLogOut(BaseModel):
     id: int
     alert_id: int
-    triggered_at: str
+    triggered_at: datetime
     price_at_trigger: float
     notified: bool
 
