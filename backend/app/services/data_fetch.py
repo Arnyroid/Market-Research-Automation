@@ -129,20 +129,23 @@ def _fetch_bse_quote(scrip_code: str) -> Optional[QuoteResult]:
         return None
 
     prev_close = _to_float(raw.get("previousClose"))
-    pct_change: float | None = None
-    if ltp and prev_close and prev_close != 0:
-        pct_change = round((ltp - prev_close) / prev_close * 100, 2)
+
+    # bsedata 0.6.x uses pChange (already a % string, e.g. "1.61")
+    pct_change = _to_float(raw.get("pChange"))
+
+    # totalTradedQuantity is formatted like "4.60 Lakh" — parse to int
+    volume = _parse_bse_volume(raw.get("totalTradedQuantity", ""))
 
     return QuoteResult(
         symbol=scrip_code,
         exchange="BSE",
         company_name=raw.get("companyName", ""),
         ltp=ltp,
-        open=_to_float(raw.get("open")),
+        open=_to_float(raw.get("previousOpen")),   # best proxy; no intraday open field
         high=_to_float(raw.get("dayHigh")),
         low=_to_float(raw.get("dayLow")),
         prev_close=prev_close,
-        volume=_to_int(raw.get("totalTradedVolume")),
+        volume=volume,
         pct_change=pct_change,
     )
 
@@ -208,4 +211,25 @@ def _to_int(value) -> int | None:
             return None
         return int(str(value).replace(",", ""))
     except (ValueError, TypeError):
+        return None
+
+
+def _parse_bse_volume(raw: str) -> int | None:
+    """
+    bsedata 0.6.x returns volume as a human-readable string, e.g.:
+      "4.60 Lakh"  → 460_000
+      "1.23 Cr."   → 12_300_000
+      "500"        → 500
+    """
+    if not raw or raw.strip() in ("-", ""):
+        return None
+    raw = raw.strip()
+    multipliers = {"lakh": 100_000, "cr.": 10_000_000, "cr": 10_000_000}
+    parts = raw.lower().split()
+    try:
+        num = float(parts[0].replace(",", ""))
+        if len(parts) > 1 and parts[1] in multipliers:
+            return int(num * multipliers[parts[1]])
+        return int(num)
+    except (ValueError, IndexError):
         return None
