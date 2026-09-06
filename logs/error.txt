@@ -1,42 +1,28 @@
-INFO:     Will watch for changes in these directories: ['D:\\personal\\GitHub\\Market-Research-Automation']
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [8984] using WatchFiles
-INFO:     Started server process [23596]
-INFO:     Waiting for application startup.
-2026-09-06 21:19:27.358 | INFO     | backend.app.main:lifespan:36 - Creating database tables...
-2026-09-06 21:19:27.379 | INFO     | backend.app.main:lifespan:39 - Pre-loading NSE equity master...
-2026-09-06 21:19:27.380 | INFO     | backend.app.main:lifespan:43 - Starting APScheduler...
-2026-09-06 21:19:27.392 | INFO     | backend.app.jobs.scheduler:_build_scheduler:74 - APScheduler configured with all jobs
-INFO:     Application startup complete.
-2026-09-06 21:19:28.326 | INFO     | backend.app.services.data_fetch:_ensure_nse_symbols:183 - NSE equity master loaded: 2288 symbols
-INFO:     127.0.0.1:57724 - "OPTIONS /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50327 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: 500325.NS"}}}
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 21:19:39.430 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 21:19:39.814 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:63611 - "OPTIONS /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64954 - "OPTIONS /watchlist/search?q=T HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64954 - "GET /watchlist/search?q=T HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57724 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64954 - "OPTIONS /prices/500325?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57724 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57724 - "OPTIONS /watchlist/search?q=Thank HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57724 - "GET /watchlist/search?q=Thank HTTP/1.1" 200 OK
-HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: 500325.NS"}}}
-INFO:     127.0.0.1:57724 - "OPTIONS /watchlist/search?q=Than HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57724 - "GET /watchlist/search?q=Than HTTP/1.1" 200 OK
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 21:19:41.901 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 21:19:42.095 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:64954 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 21:19:42.961 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 21:19:43.034 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:64954 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:64954 - "OPTIONS /watchlist/1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64954 - "DELETE /watchlist/1 HTTP/1.1" 500 Internal Server Error
+0.1:61548 - "OPTIONS /analysis/VIKRAMSOLR/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49969 - "OPTIONS /analysis/SAGILITY/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49969 - "GET /analysis/OLAELEC/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61548 - "GET /analysis/WELSPUNLIV/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52434 - "GET /analysis/URBANCO/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61548 - "GET /analysis/VIKRAMSOLR/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49969 - "GET /analysis/DELHIVERY/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52434 - "GET /analysis/WIPRO/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61548 - "GET /analysis/CROMPTON/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49969 - "GET /analysis/SAGILITY/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49969 - "GET /analysis/VIKRAMSOLR/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61548 - "GET /analysis/SAGILITY/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52434 - "GET /analysis/URBANCO/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52434 - "GET /analysis/DELHIVERY/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49969 - "GET /analysis/WELSPUNLIV/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61548 - "GET /analysis/OLAELEC/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49969 - "GET /analysis/CROMPTON/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52434 - "GET /analysis/WIPRO/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52434 - "GET /trades/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52434 - "GET /trades/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52434 - "OPTIONS /prices/VIKRAMSOLR/history?exchange=NSE&days=300 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61548 - "OPTIONS /analysis/VIKRAMSOLR?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49969 - "OPTIONS /prices/VIKRAMSOLR?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60568 - "OPTIONS /prices/VIKRAMSOLR?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50939 - "OPTIONS /prices/VIKRAMSOLR/history?exchange=NSE&days=300 HTTP/1.1" 200 OK
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
@@ -49,7 +35,7 @@ Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
     cursor.execute(statement, parameters)
     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-sqlite3.OperationalError: no such column: alerts.repeating
+sqlite3.OperationalError: no such column: agent_analysis.fundamentals_snapshot
 
 The above exception was the direct cause of the following exception:
 
@@ -129,283 +115,12 @@ Traceback (most recent call last):
            ^^^^^^^^^^^^
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1100, in run
     result = context.run(func, *args)
-  File "D:\personal\GitHub\Market-Research-Automation\backend\app\routers\watchlist.py", line 85, in remove_from_watchlist
-    db.delete(item)
-    ~~~~~~~~~^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 3550, in delete
-    self._delete_impl(state, instance, head=True)
-    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 3577, in _delete_impl
-    cascade_states = list(
-        state.manager.mapper.cascade_iterator("delete", state)
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\mapper.py", line 3993, in cascade_iterator
-    queue = deque(
-        prop.cascade_iterator(
-    ...<5 lines>...
-        )
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\relationships.py", line 1526, in cascade_iterator
-    tuples = self._value_as_iterable(
-        state, dict_, self.key, passive=passive
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\relationships.py", line 1496, in _value_as_iterable
-    x = impl.get(state, dict_, passive=passive)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 1096, in get
-    value = self._fire_loader_callables(state, key, passive)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 1131, in _fire_loader_callables
-    return self.callable_(state, passive)
-           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\strategies.py", line 978, in _load_for_state
-    return self._emit_lazyload(
-           ~~~~~~~~~~~~~~~~~~~^
-        session,
-        ^^^^^^^^
-    ...<7 lines>...
-        execution_options,
-        ^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\strategies.py", line 1141, in _emit_lazyload
-    result = session.execute(
-        stmt, params, execution_options=execution_options
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2373, in execute
-    return self._execute_internal(
-           ~~~~~~~~~~~~~~~~~~~~~~^
-        statement,
-        ^^^^^^^^^^
-    ...<4 lines>...
-        _add_event=_add_event,
-        ^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2271, in _execute_internal
-    result: Result[Any] = compile_state_cls.orm_execute_statement(
-                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-        self,
-        ^^^^^
-    ...<4 lines>...
-        conn,
-        ^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
-    result = conn.execute(
-        statement, params or {}, execution_options=execution_options
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1421, in execute
-    return meth(
-        self,
-        distilled_parameters,
-        execution_options or NO_OPTIONS,
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 526, in _execute_on_connection
-    return connection._execute_clauseelement(
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-        self, distilled_params, execution_options
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1643, in _execute_clauseelement
-    ret = self._execute_context(
-        dialect,
-    ...<8 lines>...
-        cache_hit=cache_hit,
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
-    return self._exec_single_context(
-           ~~~~~~~~~~~~~~~~~~~~~~~~~^
-        dialect, context, statement, parameters
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
-    self._handle_dbapi_exception(
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-        e, str_statement, effective_parameters, cursor, context
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2365, in _handle_dbapi_exception
-    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
-    self.dialect.do_execute(
-    ~~~~~~~~~~~~~~~~~~~~~~~^
-        cursor, str_statement, effective_parameters, context
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
-    cursor.execute(statement, parameters)
-    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: alerts.repeating
-[SQL: SELECT alerts.id AS alerts_id, alerts.watchlist_id AS alerts_watchlist_id, alerts.symbol AS alerts_symbol, alerts.exchange AS alerts_exchange, alerts.condition_type AS alerts_condition_type, alerts.threshold AS alerts_threshold, alerts.active AS alerts_active, alerts.repeating AS alerts_repeating, alerts.notes AS alerts_notes, alerts.created_at AS alerts_created_at
-FROM alerts
-WHERE ? = alerts.watchlist_id]
-[parameters: (1,)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-INFO:     127.0.0.1:57724 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57724 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57724 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57242 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 21:19:49.033 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 21:19:49.106 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 21:19:49.601 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 21:19:49.675 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:57724 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 21:19:50.490 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 21:19:50.563 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:57724 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:64300 - "OPTIONS /watchlist/search?q=thank HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64300 - "GET /watchlist/search?q=thank HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64300 - "OPTIONS /watchlist/search?q=than HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64300 - "GET /watchlist/search?q=than HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64300 - "POST /watchlist HTTP/1.1" 201 Created
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 21:20:40.564 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 21:20:40.727 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 21:20:50.396 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 21:20:50.468 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:05:28.370 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:05:28.634 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:54244 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:05:33.607 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:05:33.682 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:62602 - "OPTIONS /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49456 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:05:35.092 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:05:35.148 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:53548 - "OPTIONS /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62602 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53548 - "OPTIONS /prices/THANGAMAYL?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62602 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60597 - "OPTIONS /prices/500325?exchange=NSE HTTP/1.1" 200 OK
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:05:36.273 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:05:36.417 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:60597 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:53548 - "GET /prices/THANGAMAYL?exchange=NSE HTTP/1.1" 200 OK
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:05:37.427 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:05:37.480 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:60597 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:53548 - "GET /prices/THANGAMAYL?exchange=NSE HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64600 - "OPTIONS /trades/portfolio HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51068 - "OPTIONS /trades HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65053 - "OPTIONS /trades/portfolio HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63212 - "OPTIONS /corporate-actions HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56636 - "OPTIONS /corporate-actions HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53018 - "OPTIONS /trades HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65053 - "GET /trades HTTP/1.1" 500 Internal Server Error
-ERROR:    Exception in ASGI application
-Traceback (most recent call last):
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
-    self.dialect.do_execute(
-    ~~~~~~~~~~~~~~~~~~~~~~~^
-        cursor, str_statement, effective_parameters, context
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
-    cursor.execute(statement, parameters)
-    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-sqlite3.OperationalError: no such column: trades.realized_pnl
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\uvicorn\protocols\http\httptools_impl.py", line 422, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        self.scope, self.receive, self.send
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 63, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\applications.py", line 1163, in __call__
-    await super().__call__(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\applications.py", line 96, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
-    raise exc
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
-    await self.app(scope, receive, _send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\middleware\cors.py", line 96, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\middleware\cors.py", line 154, in simple_response
-    await self.app(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
-    await self.app(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\routing.py", line 670, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 2734, in app
-    await route.handle(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 1780, in handle
-    await self.original_router.handle(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 2789, in handle
-    await included_router._handle_selected(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 1800, in _handle_selected
-    await original_route.handle(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 1279, in handle
-    await app(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 158, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 144, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 706, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    ...<3 lines>...
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\fastapi\routing.py", line 354, in run_endpoint_function
-    return await run_in_threadpool(dependant.call, **values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\starlette\concurrency.py", line 34, in run_in_threadpool
-    return await anyio.to_thread.run_sync(func)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\anyio\to_thread.py", line 65, in run_sync
-    return await get_async_backend().run_sync_in_worker_thread(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2706, in run_sync_in_worker_thread
-    return await future
-           ^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1100, in run
-    result = context.run(func, *args)
-  File "D:\personal\GitHub\Market-Research-Automation\backend\app\routers\trades.py", line 73, in list_trades
-    return q.order_by(Trade.trade_date.desc()).all()
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2711, in all
-    return self._iter().all()  # type: ignore
-           ~~~~~~~~~~^^
+  File "D:\personal\GitHub\Market-Research-Automation\backend\app\routers\analysis.py", line 58, in get_latest_analysis
+    .first()
+     ~~~~~^^
+  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2766, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ~~~~~~~~~~~~~~~~~~~^^
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2864, in _iter
     result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
                                                   ~~~~~~~~~~~~~~~~~~~~^
@@ -486,11 +201,15 @@ Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
     cursor.execute(statement, parameters)
     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: trades.realized_pnl
-[SQL: SELECT trades.id AS trades_id, trades.trade_date AS trades_trade_date, trades.symbol AS trades_symbol, trades.exchange AS trades_exchange, trades.company_name AS trades_company_name, trades.trade_type AS trades_trade_type, trades.quantity AS trades_quantity, trades.price AS trades_price, trades.brokerage AS trades_brokerage, trades.notes AS trades_notes, trades.realized_pnl AS trades_realized_pnl, trades.created_at AS trades_created_at
-FROM trades ORDER BY trades.trade_date DESC]
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: agent_analysis.fundamentals_snapshot
+[SQL: SELECT agent_analysis.id AS agent_analysis_id, agent_analysis.symbol AS agent_analysis_symbol, agent_analysis.exchange AS agent_analysis_exchange, agent_analysis.generated_at AS agent_analysis_generated_at, agent_analysis.indicators_snapshot AS agent_analysis_indicators_snapshot, agent_analysis.fundamentals_snapshot AS agent_analysis_fundamentals_snapshot, agent_analysis.news_context AS agent_analysis_news_context, agent_analysis.llm_output AS agent_analysis_llm_output, agent_analysis.risk_flag AS agent_analysis_risk_flag, agent_analysis.structured_output AS agent_analysis_structured_output, agent_analysis.target_review_date AS agent_analysis_target_review_date 
+FROM agent_analysis 
+WHERE agent_analysis.symbol = ? AND agent_analysis.exchange = ? ORDER BY agent_analysis.generated_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: ('VIKRAMSOLR', 'NSE', 1, 0)]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
-INFO:     127.0.0.1:56636 - "GET /trades HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:63681 - "GET /analysis/VIKRAMSOLR/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53830 - "GET /analysis/VIKRAMSOLR?exchange=NSE HTTP/1.1" 500 Internal Server Error
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
@@ -503,7 +222,7 @@ Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
     cursor.execute(statement, parameters)
     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-sqlite3.OperationalError: no such column: trades.realized_pnl
+sqlite3.OperationalError: no such column: agent_analysis.fundamentals_snapshot
 
 The above exception was the direct cause of the following exception:
 
@@ -583,12 +302,12 @@ Traceback (most recent call last):
            ^^^^^^^^^^^^
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1100, in run
     result = context.run(func, *args)
-  File "D:\personal\GitHub\Market-Research-Automation\backend\app\routers\trades.py", line 73, in list_trades
-    return q.order_by(Trade.trade_date.desc()).all()
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2711, in all
-    return self._iter().all()  # type: ignore
-           ~~~~~~~~~~^^
+  File "D:\personal\GitHub\Market-Research-Automation\backend\app\routers\analysis.py", line 58, in get_latest_analysis
+    .first()
+     ~~~~~^^
+  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2766, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ~~~~~~~~~~~~~~~~~~~^^
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2864, in _iter
     result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
                                                   ~~~~~~~~~~~~~~~~~~~~^
@@ -669,46 +388,17 @@ Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
     cursor.execute(statement, parameters)
     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: trades.realized_pnl
-[SQL: SELECT trades.id AS trades_id, trades.trade_date AS trades_trade_date, trades.symbol AS trades_symbol, trades.exchange AS trades_exchange, trades.company_name AS trades_company_name, trades.trade_type AS trades_trade_type, trades.quantity AS trades_quantity, trades.price AS trades_price, trades.brokerage AS trades_brokerage, trades.notes AS trades_notes, trades.realized_pnl AS trades_realized_pnl, trades.created_at AS trades_created_at
-FROM trades ORDER BY trades.trade_date DESC]
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: agent_analysis.fundamentals_snapshot
+[SQL: SELECT agent_analysis.id AS agent_analysis_id, agent_analysis.symbol AS agent_analysis_symbol, agent_analysis.exchange AS agent_analysis_exchange, agent_analysis.generated_at AS agent_analysis_generated_at, agent_analysis.indicators_snapshot AS agent_analysis_indicators_snapshot, agent_analysis.fundamentals_snapshot AS agent_analysis_fundamentals_snapshot, agent_analysis.news_context AS agent_analysis_news_context, agent_analysis.llm_output AS agent_analysis_llm_output, agent_analysis.risk_flag AS agent_analysis_risk_flag, agent_analysis.structured_output AS agent_analysis_structured_output, agent_analysis.target_review_date AS agent_analysis_target_review_date 
+FROM agent_analysis 
+WHERE agent_analysis.symbol = ? AND agent_analysis.exchange = ? ORDER BY agent_analysis.generated_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: ('VIKRAMSOLR', 'NSE', 1, 0)]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
-INFO:     127.0.0.1:63212 - "GET /trades/portfolio HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53018 - "GET /corporate-actions HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63212 - "GET /trades/portfolio HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53018 - "GET /corporate-actions HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64015 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64015 - "GET /watchlist HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53642 - "WebSocket /prices/ws/prices" [accepted]
-INFO:     connection open
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:06:00.717 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:06:00.874 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:64015 - "GET /prices/THANGAMAYL?exchange=NSE HTTP/1.1" 200 OK
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:06:02.364 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:06:02.519 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:55083 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:06:03.057 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:06:03.117 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-INFO:     127.0.0.1:55083 - "GET /prices/500325?exchange=NSE HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:64015 - "GET /prices/THANGAMAYL?exchange=NSE HTTP/1.1" 200 OK
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:06:35.157 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:06:35.320 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:06:36.580 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:06:36.648 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:07:02.467 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:07:02.635 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-$500325.NS: No data found, symbol may be delisted
-2026-09-06 22:08:04.365 | DEBUG    | backend.app.services.data_fetch:_yf_ticker_quote:285 - yfinance lookup failed for 500325.NS: 'currentTradingPeriod'
-2026-09-06 22:08:04.527 | WARNING  | backend.app.services.data_fetch:_fetch_yf_quote:244 - No data returned from yfinance for 500325/NSE
-Run time of job "Price Poller (trigger: interval[0:05:00], next run at: 2026-09-06 21:24:27 IST)" was missed by 0:04:12.452801
-INFO:     127.0.0.1:56093 - "OPTIONS /watchlist/1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56093 - "DELETE /watchlist/1 HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:60568 - "GET /prices/VIKRAMSOLR/history?exchange=NSE&days=300 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61548 - "GET /prices/VIKRAMSOLR?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51699 - "GET /analysis/VIKRAMSOLR/fundamentals?exchange=NSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65314 - "GET /analysis/VIKRAMSOLR?exchange=NSE HTTP/1.1" 500 Internal Server Error
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
@@ -721,7 +411,7 @@ Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
     cursor.execute(statement, parameters)
     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-sqlite3.OperationalError: no such column: alerts.repeating
+sqlite3.OperationalError: no such column: agent_analysis.fundamentals_snapshot
 
 The above exception was the direct cause of the following exception:
 
@@ -801,47 +491,23 @@ Traceback (most recent call last):
            ^^^^^^^^^^^^
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1100, in run
     result = context.run(func, *args)
-  File "D:\personal\GitHub\Market-Research-Automation\backend\app\routers\watchlist.py", line 85, in remove_from_watchlist
-    db.delete(item)
-    ~~~~~~~~~^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 3550, in delete
-    self._delete_impl(state, instance, head=True)
-    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 3577, in _delete_impl
-    cascade_states = list(
-        state.manager.mapper.cascade_iterator("delete", state)
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\mapper.py", line 3993, in cascade_iterator
-    queue = deque(
-        prop.cascade_iterator(
-    ...<5 lines>...
-        )
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\relationships.py", line 1526, in cascade_iterator
-    tuples = self._value_as_iterable(
-        state, dict_, self.key, passive=passive
-    )
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\relationships.py", line 1496, in _value_as_iterable
-    x = impl.get(state, dict_, passive=passive)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 1096, in get
-    value = self._fire_loader_callables(state, key, passive)
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 1131, in _fire_loader_callables
-    return self.callable_(state, passive)
-           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\strategies.py", line 978, in _load_for_state
-    return self._emit_lazyload(
-           ~~~~~~~~~~~~~~~~~~~^
-        session,
-        ^^^^^^^^
-    ...<7 lines>...
-        execution_options,
-        ^^^^^^^^^^^^^^^^^^
+  File "D:\personal\GitHub\Market-Research-Automation\backend\app\routers\analysis.py", line 58, in get_latest_analysis
+    .first()
+     ~~~~~^^
+  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2766, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2864, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+        params,
+        ^^^^^^^
+        execution_options={"_sa_orm_load_options": self.load_options},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     )
     ^
-  File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\strategies.py", line 1141, in _emit_lazyload
-    result = session.execute(
-        stmt, params, execution_options=execution_options
-    )
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2373, in execute
     return self._execute_internal(
            ~~~~~~~~~~~~~~~~~~~~~~^
@@ -911,10 +577,12 @@ Traceback (most recent call last):
   File "D:\personal\GitHub\Market-Research-Automation\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
     cursor.execute(statement, parameters)
     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: alerts.repeating
-[SQL: SELECT alerts.id AS alerts_id, alerts.watchlist_id AS alerts_watchlist_id, alerts.symbol AS alerts_symbol, alerts.exchange AS alerts_exchange, alerts.condition_type AS alerts_condition_type, alerts.threshold AS alerts_threshold, alerts.active AS alerts_active, alerts.repeating AS alerts_repeating, alerts.notes AS alerts_notes, alerts.created_at AS alerts_created_at
-FROM alerts
-WHERE ? = alerts.watchlist_id]
-[parameters: (1,)]
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: agent_analysis.fundamentals_snapshot
+[SQL: SELECT agent_analysis.id AS agent_analysis_id, agent_analysis.symbol AS agent_analysis_symbol, agent_analysis.exchange AS agent_analysis_exchange, agent_analysis.generated_at AS agent_analysis_generated_at, agent_analysis.indicators_snapshot AS agent_analysis_indicators_snapshot, agent_analysis.fundamentals_snapshot AS agent_analysis_fundamentals_snapshot, agent_analysis.news_context AS agent_analysis_news_context, agent_analysis.llm_output AS agent_analysis_llm_output, agent_analysis.risk_flag AS agent_analysis_risk_flag, agent_analysis.structured_output AS agent_analysis_structured_output, agent_analysis.target_review_date AS agent_analysis_target_review_date 
+FROM agent_analysis 
+WHERE agent_analysis.symbol = ? AND agent_analysis.exchange = ? ORDER BY agent_analysis.generated_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: ('VIKRAMSOLR', 'NSE', 1, 0)]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
-INFO:     127.0.0.1:55760 - "GET /watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59390 - "GET /prices/VIKRAMSOLR/history?exchange=NSE&days=300 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59809 - "GET /prices/VIKRAMSOLR?exchange=NSE HTTP/1.1" 200 OK
