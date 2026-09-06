@@ -29,34 +29,48 @@ Comprehensive system to fetch BSE (Bombay Stock Exchange) stock data and track y
 
 ```
 Market-Research-Automation/
-├── bse_fetcher.py              # Core BSE data fetching logic
-├── scheduler.py                # Scheduling and automation
-├── config.py                   # Configuration settings
-├── requirements.txt            # Python dependencies
-│
-├── Portfolio Management Modules:
-├── portfolio_db.py             # SQLite database management
-├── add_trade.py                # Quick command-line trade entry
-├── trade_importer.py           # Import trades from Excel/CSV
-├── portfolio_analyzer.py       # P&L calculations and analytics
-├── price_updater.py            # Update portfolio with live prices
-├── portfolio_dashboard.py      # CLI dashboard for viewing data
-│
-├── Documentation:
 ├── README.md                   # This file
-├── QUICK_START.md              # Quick start guide
-├── PORTFOLIO_USAGE_GUIDE.md    # Complete portfolio guide
-├── COMMAND_LINE_TRADE_ENTRY.md # Command line trade entry guide
-├── BUY_TRANSACTION_GUIDE.md    # Guide for recording purchases
-├── SELL_TRANSACTION_GUIDE.md   # Guide for recording sales
-├── CUSTOM_SCRIPS_GUIDE.md      # Custom stock list guide
-├── SCHEMA_OPTIMIZATION.md      # Database optimization guide
+├── .env.example                # Environment variables template
+├── setup.bat / setup.sh        # One-click setup scripts
+├── start.bat                   # One-click start script
 │
-├── Data & Logs:
+├── backend/                    # Python FastAPI backend
+│   ├── app/
+│   │   ├── main.py             # FastAPI entry point
+│   │   ├── models.py           # SQLAlchemy ORM models
+│   │   ├── routers/            # API endpoints
+│   │   ├── services/           # Business logic
+│   │   └── jobs/               # Background jobs
+│   └── requirements.txt        # Python dependencies
+│
+├── frontend/                   # React + Vite frontend
+│   ├── src/
+│   │   ├── pages/              # React pages
+│   │   ├── api/                # API client
+│   │   └── hooks/              # Custom hooks
+│   └── package.json
+│
+├── src/                        # Standalone Python module (legacy)
+│   ├── config.py               # Module configuration
+│   ├── bse_fetcher.py          # BSE data fetching
+│   ├── portfolio_db.py         # SQLite database management
+│   ├── portfolio_analyzer.py   # P&L calculations
+│   └── ...
+│
+├── scripts/                    # Utility scripts
+│   ├── add_trade.py            # Quick command-line trade entry
+│   ├── report_generator.py     # Report generation
+│   └── ...
+│
+├── docs/                       # All documentation
+│   ├── QUICK_START.md
+│   ├── SETUP_GUIDE.md
+│   ├── ARCHITECTURE.md
+│   └── *.md
+│
 ├── data/                       # Stock data CSV files & portfolio.db
 ├── logs/                       # Application logs
-├── .env.example               # Environment variables template
-└── .gitignore                 # Git ignore rules
+└── tests/                      # Test suite
 ```
 
 ## 🚀 Installation
@@ -549,13 +563,13 @@ docker run -d --name bse-fetcher -v $(pwd)/data:/app/data -v $(pwd)/logs:/app/lo
 
 ## 📚 Documentation
 
-Comprehensive guides available:
+Comprehensive guides available in the [`docs/`](docs/) folder:
 
-- **[PORTFOLIO_USAGE_GUIDE.md](PORTFOLIO_USAGE_GUIDE.md)** - Complete portfolio management guide
-- **[SELL_TRANSACTION_GUIDE.md](SELL_TRANSACTION_GUIDE.md)** - How to record SELL transactions
-- **[CUSTOM_SCRIPS_GUIDE.md](CUSTOM_SCRIPS_GUIDE.md)** - Custom stock list management
-- **[SCHEMA_OPTIMIZATION.md](SCHEMA_OPTIMIZATION.md)** - Database optimization for large portfolios
-- **[QUICK_START.md](QUICK_START.md)** - Quick start guide
+- **[docs/PORTFOLIO_USAGE_GUIDE.md](docs/PORTFOLIO_USAGE_GUIDE.md)** - Complete portfolio management guide
+- **[docs/SELL_TRANSACTION_GUIDE.md](docs/SELL_TRANSACTION_GUIDE.md)** - How to record SELL transactions
+- **[docs/CUSTOM_SCRIPS_GUIDE.md](docs/CUSTOM_SCRIPS_GUIDE.md)** - Custom stock list management
+- **[docs/SCHEMA_OPTIMIZATION.md](docs/SCHEMA_OPTIMIZATION.md)** - Database optimization for large portfolios
+- **[docs/QUICK_START.md](docs/QUICK_START.md)** - Quick start guide
 
 ## 🎯 Common Workflows
 
@@ -661,21 +675,21 @@ This tool is for educational and research purposes. Always verify data accuracy 
 ## 💡 Support
 
 For issues or questions:
-- Check the documentation guides
+- Check the documentation guides in [`docs/`](docs/)
 - Review logs: `logs/stock_fetcher.log`
-- Check configuration: `config.py`
+- Check configuration: `src/config.py`
 
 ## 📚 Documentation
 
-Comprehensive guides available:
+Comprehensive guides available in the [`docs/`](docs/) folder:
 
-- **[COMMAND_LINE_TRADE_ENTRY.md](COMMAND_LINE_TRADE_ENTRY.md)** - Quick command-line trade entry (NEW!)
-- **[BUY_TRANSACTION_GUIDE.md](BUY_TRANSACTION_GUIDE.md)** - Complete guide for recording purchases
-- **[SELL_TRANSACTION_GUIDE.md](SELL_TRANSACTION_GUIDE.md)** - How to record SELL transactions
-- **[PORTFOLIO_USAGE_GUIDE.md](PORTFOLIO_USAGE_GUIDE.md)** - Complete portfolio management guide
-- **[CUSTOM_SCRIPS_GUIDE.md](CUSTOM_SCRIPS_GUIDE.md)** - Custom stock list management
-- **[SCHEMA_OPTIMIZATION.md](SCHEMA_OPTIMIZATION.md)** - Database optimization for large portfolios
-- **[QUICK_START.md](QUICK_START.md)** - Quick start guide
+- **[docs/COMMAND_LINE_TRADE_ENTRY.md](docs/COMMAND_LINE_TRADE_ENTRY.md)** - Quick command-line trade entry
+- **[docs/BUY_TRANSACTION_GUIDE.md](docs/BUY_TRANSACTION_GUIDE.md)** - Complete guide for recording purchases
+- **[docs/SELL_TRANSACTION_GUIDE.md](docs/SELL_TRANSACTION_GUIDE.md)** - How to record SELL transactions
+- **[docs/PORTFOLIO_USAGE_GUIDE.md](docs/PORTFOLIO_USAGE_GUIDE.md)** - Complete portfolio management guide
+- **[docs/CUSTOM_SCRIPS_GUIDE.md](docs/CUSTOM_SCRIPS_GUIDE.md)** - Custom stock list management
+- **[docs/SCHEMA_OPTIMIZATION.md](docs/SCHEMA_OPTIMIZATION.md)** - Database optimization for large portfolios
+- **[docs/QUICK_START.md](docs/QUICK_START.md)** - Quick start guide
 - Open an issue on GitHub
 
 ## 🚀 Future Enhancements

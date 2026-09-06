@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.app.core.config import get_settings
 from backend.app.core.db import SessionLocal, get_db
 from backend.app.models import PriceHistory, Watchlist
-from backend.app.services.data_fetch import fetch_quote
+from backend.app.services.data_fetch import fetch_ohlcv, fetch_quote
 
 router = APIRouter()
 settings = get_settings()
@@ -74,6 +74,8 @@ def get_history(
     days: int = 30,
     db: Session = Depends(get_db),
 ):
+    # Cap at 400 calendar days (~280 trading days — enough for SMA-200)
+    days = min(days, 400)
     since = datetime.now() - timedelta(days=days)
     rows = (
         db.query(PriceHistory)
@@ -85,7 +87,37 @@ def get_history(
         .order_by(PriceHistory.timestamp.asc())
         .all()
     )
-    return rows
+
+    # Deduplicate by calendar date: keep the last row per date.
+    seen_dates: set[str] = set()
+    deduped: list[PriceHistory] = []
+    for row in reversed(rows):                      # most-recent first
+        day = row.timestamp.date().isoformat()
+        if day not in seen_dates:
+            seen_dates.add(day)
+            deduped.append(row)
+    deduped.reverse()                               # back to chronological order
+
+    # Fall back to yfinance when DB has fewer than 5 distinct trading days.
+    # Always use yfinance when more than 30 days are requested — the poller
+    # only accumulates ~1 row/day so the DB won't have enough for SMA-50/200
+    # until the app has been running for months.
+    if len(deduped) >= 5 and days <= 35:
+        return deduped
+
+    # Fetch directly from yfinance for longer ranges or sparse DB
+    live = fetch_ohlcv(symbol, exchange.upper(), days=days)
+    return [
+        OHLCVOut(
+            timestamp=bar.timestamp,
+            open=bar.open,
+            high=bar.high,
+            low=bar.low,
+            close=bar.close,
+            volume=bar.volume,
+        )
+        for bar in live
+    ]
 
 
 # ── WebSocket — live price push ───────────────────────────────────────────────

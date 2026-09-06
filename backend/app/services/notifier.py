@@ -60,7 +60,7 @@ def send_message(text: str, title: str = "Stock Alert") -> None:
     Channels are tried in parallel (sequentially here for simplicity, but
     each failure is isolated).
     """
-    channels = [c.strip().lower() for c in settings.notify_channels if c.strip()]
+    channels = [c.strip().lower() for c in settings.notify_channels_list if c.strip()]
 
     if not channels:
         logger.warning("notify_channels is empty — no notification will be sent")

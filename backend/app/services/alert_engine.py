@@ -13,7 +13,7 @@ from typing import Optional
 from loguru import logger
 from sqlalchemy.orm import Session
 
-from backend.app.models import Alert, AlertLog
+from backend.app.models import Alert, AlertLog, Portfolio
 from backend.app.services import notifier
 
 
@@ -44,7 +44,7 @@ def check_alerts(
     fired: list[AlertLog] = []
 
     for alert in active_alerts:
-        triggered = _is_triggered(alert, current_price, prev_price)
+        triggered = _is_triggered(alert, current_price, prev_price, db)
         if not triggered:
             continue
 
@@ -55,8 +55,9 @@ def check_alerts(
         )
         db.add(log)
 
-        # Deactivate so it doesn't re-fire on the next tick
-        alert.active = False
+        # Deactivate unless marked as repeating
+        if not alert.repeating:
+            alert.active = False
 
         # Try to send notification (best-effort — don't fail the whole job)
         try:
@@ -86,6 +87,7 @@ def _is_triggered(
     alert: Alert,
     current_price: float,
     prev_price: Optional[float],
+    db: Session,
 ) -> bool:
     ctype = alert.condition_type
     threshold = alert.threshold
@@ -102,5 +104,15 @@ def _is_triggered(
             return pct >= threshold
         if ctype == "pct_change_down":
             return pct <= -abs(threshold)
+
+    if ctype == "portfolio_pnl_below":
+        row = (
+            db.query(Portfolio)
+            .filter(Portfolio.symbol == alert.symbol, Portfolio.exchange == alert.exchange)
+            .first()
+        )
+        if row and row.avg_buy_price and row.avg_buy_price != 0 and row.total_quantity > 0:
+            pnl_pct = (current_price - row.avg_buy_price) / row.avg_buy_price * 100
+            return pnl_pct <= threshold  # threshold is e.g. -10 (fire when down 10%+)
 
     return False

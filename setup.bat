@@ -105,7 +105,7 @@ echo.
 echo [4/4] Copying .env.example to .env ...
 if not exist .env (
     copy .env.example .env
-    echo      .env created — open it and fill in NTFY_TOPIC and CLAUDE_API_KEY
+    echo      .env created — open it and fill in NTFY_TOPIC and GEMINI_API_KEY
 ) else (
     echo      .env already exists — skipping
 )

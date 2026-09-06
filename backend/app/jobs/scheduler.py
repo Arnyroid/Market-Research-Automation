@@ -5,10 +5,13 @@ scheduler that main.py starts/stops in the FastAPI lifespan.
 Jobs registered
 ---------------
   price_poller          every N minutes during market hours
-  alert_checker         runs right after each price poll
-  indicator_calculator  end-of-day (16:00 IST) + optional intraday
-  agent_runner          daily at 08:00 IST (pre-market)
+  indicator_calculator  end-of-day (16:00 IST)
   feedback_evaluator    daily at 17:00 IST (post-market)
+
+NOTE: agent_runner is intentionally NOT scheduled.
+  AI analysis (Gemini) is triggered on-demand only — when the user opens a
+  stock detail page or clicks "Refresh Insight". This avoids burning the free
+  Gemini quota with N silent API calls every morning for every watchlist symbol.
 """
 from __future__ import annotations
 
@@ -19,7 +22,6 @@ from loguru import logger
 
 from backend.app.core.config import get_settings
 from backend.app.jobs import (
-    agent_runner,
     feedback_evaluator,
     indicator_calculator,
     price_poller,
@@ -57,15 +59,6 @@ def _build_scheduler() -> BackgroundScheduler:
         trigger=CronTrigger(hour=16, minute=0, timezone="Asia/Kolkata"),
         id="indicator_calculator",
         name="Indicator Calculator",
-        replace_existing=True,
-    )
-
-    # ── Agent runner — daily at 08:00 IST (pre-market brief) ─────────────────
-    sched.add_job(
-        agent_runner.run,
-        trigger=CronTrigger(hour=8, minute=0, timezone="Asia/Kolkata"),
-        id="agent_runner",
-        name="Agent Runner",
         replace_existing=True,
     )
 

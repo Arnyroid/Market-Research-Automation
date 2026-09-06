@@ -15,6 +15,7 @@ from loguru import logger
 from backend.app.core.config import get_settings
 from backend.app.core.db import Base, engine
 from backend.app.jobs.scheduler import get_scheduler
+from backend.app.services.data_fetch import _ensure_nse_symbols
 from backend.app.routers import (
     alerts,
     analysis,
@@ -33,6 +34,10 @@ async def lifespan(app: FastAPI):
     # ── Startup ──────────────────────────────────────────────────────────────
     logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
+
+    logger.info("Pre-loading NSE equity master...")
+    import threading
+    threading.Thread(target=_ensure_nse_symbols, daemon=True).start()
 
     logger.info("Starting APScheduler...")
     scheduler = get_scheduler()
@@ -55,7 +60,7 @@ app = FastAPI(
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

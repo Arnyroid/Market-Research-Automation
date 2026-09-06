@@ -1,17 +1,8 @@
 """
 Unified market data fetcher — uses yfinance for both NSE and BSE quotes.
 
-nsepython / bsedata are no longer used as primary sources because:
-  - NSE's website now requires a live browser session (blocks server-side requests → 403)
-  - bsedata scrip-code lookups are unreliable on yfinance's .BO feed
-
-yfinance ticker conventions used here:
-  NSE  →  {SYMBOL}.NS   e.g. RELIANCE.NS, AXISBANK.NS
-  BSE  →  {SYMBOL}.BO   e.g. RELIANCE.BO  (or fall back to .NS if .BO has no data)
-
-For BSE scrip-code entries (e.g. "500325") yfinance does not work well —
-the code attempts a .BO lookup and, if empty, falls back to a .NS lookup so
-mixed watchlists still work.
+Symbol search uses NSE's public equity master CSV (EQUITY_L.csv), downloaded
+once on first call and cached in memory for the lifetime of the process.
 
 Public API
 ----------
@@ -20,9 +11,14 @@ Public API
 """
 from __future__ import annotations
 
+import csv
+import io
+import threading
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Optional
 
+import requests
 from loguru import logger
 
 try:
@@ -57,7 +53,67 @@ class SymbolInfo:
     sector: str | None = None
 
 
+# ── Data classes ─────────────────────────────────────────────────────────────
+
+@dataclass
+class OHLCVResult:
+    timestamp: datetime
+    open: float | None
+    high: float | None
+    low: float | None
+    close: float
+    volume: int | None
+
+
 # ── Main fetch functions ──────────────────────────────────────────────────────
+
+def fetch_ohlcv(symbol: str, exchange: str, days: int = 30) -> list[OHLCVResult]:
+    """
+    Fetch daily OHLCV bars for the last `days` calendar days via yfinance.
+    Returns an empty list on any failure.
+    """
+    if not YF_AVAILABLE:
+        return []
+
+    exchange = exchange.upper()
+    suffixes = [".NS"] if exchange == "NSE" else [".BO", ".NS"]
+    if symbol.isdigit() and exchange == "NSE":
+        suffixes = [".NS", ".BO"]
+
+    end_dt   = datetime.now()
+    # Add a small buffer so the last trading day is always included
+    start_dt = end_dt - timedelta(days=days + 7)
+
+    for suffix in suffixes:
+        ticker_str = f"{symbol}{suffix}"
+        try:
+            ticker = yf.Ticker(ticker_str)
+            hist = ticker.history(
+                start=start_dt.strftime("%Y-%m-%d"),
+                end=end_dt.strftime("%Y-%m-%d"),
+                interval="1d",
+            )
+            if hist.empty:
+                continue
+            results: list[OHLCVResult] = []
+            for ts, row in hist.iterrows():
+                # ts is a pandas Timestamp (tz-aware); convert to naive UTC datetime
+                naive_dt = ts.to_pydatetime().replace(tzinfo=None)
+                results.append(OHLCVResult(
+                    timestamp=naive_dt,
+                    open=float(row["Open"])   if row["Open"]   == row["Open"] else None,
+                    high=float(row["High"])   if row["High"]   == row["High"] else None,
+                    low=float(row["Low"])     if row["Low"]    == row["Low"]  else None,
+                    close=float(row["Close"]),
+                    volume=int(row["Volume"]) if row["Volume"] == row["Volume"] else None,
+                ))
+            return results
+        except Exception as exc:
+            logger.debug(f"fetch_ohlcv failed for {ticker_str}: {exc}")
+
+    logger.warning(f"No OHLCV data from yfinance for {symbol}/{exchange}")
+    return []
+
 
 def fetch_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
     """
@@ -84,13 +140,76 @@ def fetch_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
         return None
 
 
+# ── NSE symbol master — downloaded once, searched in memory ──────────────────
+
+_nse_symbols: list[dict] = []          # [{symbol, name}]
+_nse_load_lock = threading.Lock()
+_nse_loaded = False
+
+_NSE_CSV_URL = (
+    "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+)
+
+
+def _ensure_nse_symbols() -> None:
+    """Download and cache the NSE equity master list (runs at most once)."""
+    global _nse_symbols, _nse_loaded
+    if _nse_loaded:
+        return
+    with _nse_load_lock:
+        if _nse_loaded:          # double-check after acquiring lock
+            return
+        try:
+            resp = requests.get(
+                _NSE_CSV_URL,
+                timeout=15,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            resp.raise_for_status()
+            reader = csv.DictReader(io.StringIO(resp.text))
+            _nse_symbols = [
+                {
+                    "symbol": row["SYMBOL"].strip(),
+                    "name":   row["NAME OF COMPANY"].strip(),
+                    "isin":   row[" ISIN NUMBER"].strip(),
+                }
+                for row in reader
+                if row.get("SYMBOL") and row.get(" SERIES", "").strip() == "EQ"
+            ]
+            _nse_loaded = True
+            logger.info(f"NSE equity master loaded: {len(_nse_symbols)} symbols")
+        except Exception as exc:
+            logger.warning(f"Could not load NSE equity master: {exc}")
+
+
 def search_symbols(query: str) -> list[SymbolInfo]:
     """
-    Search for symbols by name or ticker.
-    yfinance doesn't offer a free-text search API, so this returns an empty
-    list — the frontend should let users type known symbols directly.
+    Search NSE equity master by symbol or company name.
+    Returns up to 10 matches, ranked: exact symbol prefix first, then name matches.
     """
-    return []
+    if not query or len(query) < 1:
+        return []
+
+    _ensure_nse_symbols()
+
+    q = query.strip().upper()
+    exact:   list[SymbolInfo] = []
+    partial: list[SymbolInfo] = []
+
+    for row in _nse_symbols:
+        sym  = row["symbol"].upper()
+        name = row["name"].upper()
+        info = SymbolInfo(
+            symbol=row["symbol"],
+            exchange="NSE",
+            company_name=row["name"],
+        )
+        if sym == q or sym.startswith(q):
+            exact.append(info)
+        elif q in sym or q in name:
+            partial.append(info)
+
+    return (exact + partial)[:10]
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -162,6 +281,51 @@ def _yf_ticker_quote(ticker_str: str, symbol: str, exchange: str) -> Optional[Qu
     except Exception as exc:
         logger.debug(f"yfinance lookup failed for {ticker_str}: {exc}")
         return None
+
+
+
+# ── News headlines ────────────────────────────────────────────────────────────
+
+@dataclass
+class NewsItem:
+    title: str
+    summary: str
+    publisher: str
+    published_at: str   # ISO-8601 string
+
+
+def fetch_news(symbol: str, exchange: str, max_items: int = 5) -> list[NewsItem]:
+    """
+    Fetch recent news headlines for a symbol via yfinance.
+    Returns up to `max_items` items; returns [] on any failure.
+    The new yfinance news structure nests data under item['content'].
+    """
+    if not YF_AVAILABLE:
+        return []
+
+    suffix = ".NS" if exchange.upper() == "NSE" else ".BO"
+    try:
+        ticker = yf.Ticker(f"{symbol}{suffix}")
+        raw = ticker.news or []
+        items: list[NewsItem] = []
+        for entry in raw[:max_items]:
+            c = entry.get("content", {}) or {}
+            title = c.get("title", "").strip()
+            if not title:
+                continue
+            summary   = (c.get("summary") or c.get("description") or "").strip()
+            publisher = (c.get("provider") or {}).get("displayName", "")
+            pub_date  = c.get("pubDate") or c.get("displayTime") or ""
+            items.append(NewsItem(
+                title=title,
+                summary=summary[:300],   # cap length
+                publisher=publisher,
+                published_at=pub_date[:10],   # keep YYYY-MM-DD
+            ))
+        return items
+    except Exception as exc:
+        logger.debug(f"fetch_news failed for {symbol}/{exchange}: {exc}")
+        return []
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────

@@ -72,7 +72,7 @@ def run() -> None:
 
                 pct = (price_now.close - price_at.close) / price_at.close * 100
 
-                # Simple heuristic: was the risk flag directionally correct?
+                # Was the risk flag directionally correct?
                 was_useful: bool | None = None
                 if analysis.risk_flag == "high" and pct < -3:
                     was_useful = True   # flagged risky → stock fell
@@ -81,16 +81,33 @@ def run() -> None:
                 elif analysis.risk_flag in ("high", "low"):
                     was_useful = False  # flag went the wrong way
 
+                # Was the BUY/HOLD/SELL/AVOID recommendation accurate?
+                was_rec_accurate: bool | None = None
+                rec = (
+                    (analysis.structured_output or {}).get("recommendation", "")
+                    if analysis.structured_output
+                    else ""
+                )
+                if rec == "BUY":
+                    was_rec_accurate = pct > 3      # accurate if stock rose > 3%
+                elif rec in ("SELL", "AVOID"):
+                    was_rec_accurate = pct < -3     # accurate if stock fell > 3%
+                elif rec == "HOLD":
+                    was_rec_accurate = abs(pct) <= 5  # accurate if roughly flat (±5%)
+                # else: unknown recommendation — leave None
+
                 fb = AgentFeedback(
                     analysis_id=analysis.id,
                     outcome_price=price_now.close,
                     outcome_pct_change=round(pct, 2),
                     was_flag_useful=was_useful,
+                    was_rec_accurate=was_rec_accurate,
                 )
                 db.add(fb)
                 logger.info(
-                    f"feedback_evaluator: analysis {analysis.id} "
-                    f"({analysis.symbol}) outcome={pct:+.2f}%, useful={was_useful}"
+                    f"feedback_evaluator: analysis {analysis.id} ({analysis.symbol}) "
+                    f"outcome={pct:+.2f}%, rec={rec or 'n/a'}, "
+                    f"rec_accurate={was_rec_accurate}, flag_useful={was_useful}"
                 )
 
             except Exception as exc:

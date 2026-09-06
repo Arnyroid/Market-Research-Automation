@@ -29,6 +29,16 @@ class AnalysisOut(BaseModel):
     llm_output: str | None
     target_review_date: str | None   # stored as YYYY-MM-DD plain string
 
+    # Convenience accessors — derived from structured_output so the frontend
+    # doesn't have to dig into the JSON blob
+    @property
+    def recommendation(self) -> str | None:
+        return (self.structured_output or {}).get("recommendation")
+
+    @property
+    def rationale(self) -> str | None:
+        return (self.structured_output or {}).get("rationale")
+
     model_config = {"from_attributes": True}
 
 
@@ -56,6 +66,12 @@ def refresh_analysis(
     db: Session = Depends(get_db),
 ):
     """Trigger a new agent_runner pass for this symbol (runs in background)."""
+    from backend.app.core.config import get_settings
+    if not get_settings().gemini_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY is not configured — add it to your .env file and restart the backend.",
+        )
     background_tasks.add_task(_run_and_store, symbol, exchange.upper())
     return {"detail": f"Analysis refresh queued for {symbol}/{exchange.upper()}"}
 

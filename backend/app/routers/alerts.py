@@ -12,7 +12,11 @@ from backend.app.models import Alert, AlertLog
 
 router = APIRouter()
 
-_VALID_CONDITIONS = {"price_above", "price_below", "pct_change_up", "pct_change_down"}
+_VALID_CONDITIONS = {
+    "price_above", "price_below",
+    "pct_change_up", "pct_change_down",
+    "portfolio_pnl_below",
+}
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -22,12 +26,14 @@ class AlertCreate(BaseModel):
     exchange: str
     condition_type: str
     threshold: float
+    repeating: bool = False
     notes: str | None = None
 
 
 class AlertUpdate(BaseModel):
     threshold: float | None = None
     active: bool | None = None
+    repeating: bool | None = None
     notes: str | None = None
 
 
@@ -38,6 +44,7 @@ class AlertOut(BaseModel):
     condition_type: str
     threshold: float
     active: bool
+    repeating: bool
     notes: str | None
     created_at: datetime
 
@@ -76,6 +83,7 @@ def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
         exchange=payload.exchange.upper(),
         condition_type=payload.condition_type,
         threshold=payload.threshold,
+        repeating=payload.repeating,
         notes=payload.notes,
     )
     db.add(alert)
@@ -93,6 +101,8 @@ def update_alert(alert_id: int, payload: AlertUpdate, db: Session = Depends(get_
         alert.threshold = payload.threshold
     if payload.active is not None:
         alert.active = payload.active
+    if payload.repeating is not None:
+        alert.repeating = payload.repeating
     if payload.notes is not None:
         alert.notes = payload.notes
     db.commit()

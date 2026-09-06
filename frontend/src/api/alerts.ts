@@ -7,6 +7,7 @@ export interface Alert {
   condition_type: string;
   threshold: number;
   active: boolean;
+  repeating: boolean;
   notes: string | null;
   created_at: string;
 }
@@ -22,7 +23,7 @@ export interface AlertLog {
 export interface CreateAlertPayload {
   symbol: string;
   exchange: string;
-  condition_type: "price_above" | "price_below" | "pct_change_up" | "pct_change_down";
+  condition_type: "price_above" | "price_below" | "pct_change_up" | "pct_change_down" | "portfolio_pnl_below";
   threshold: number;
   notes?: string;
 }

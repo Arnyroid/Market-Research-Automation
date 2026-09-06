@@ -9,6 +9,8 @@ export interface Analysis {
   indicators_snapshot: Record<string, unknown> | null;
   structured_output: {
     summary: string;
+    recommendation: "BUY" | "HOLD" | "SELL" | "AVOID";
+    rationale: string;
     risk_flag: string;
     caveats: string;
     disclaimer: string;

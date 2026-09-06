@@ -110,7 +110,16 @@ def backfill_company_names(db: Session = Depends(get_db)):
     return {"updated": updated, "total": len(rows)}
 
 
-@router.get("/search")
-def search(q: str, db: Session = Depends(get_db)):
-    """Search for symbols by name/ticker (NSE-only via nsepython for now)."""
-    return search_symbols(q)
+class SearchResult(BaseModel):
+    symbol: str
+    exchange: str
+    company_name: str
+
+
+@router.get("/search", response_model=list[SearchResult])
+def search(q: str):
+    """Search NSE equity master by symbol or company name fragment."""
+    return [
+        SearchResult(symbol=s.symbol, exchange=s.exchange, company_name=s.company_name or "")
+        for s in search_symbols(q)
+    ]

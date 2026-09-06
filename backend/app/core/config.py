@@ -4,6 +4,7 @@ All values can be overridden through environment variables or a .env file.
 """
 from functools import lru_cache
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,8 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        # Allow comma-separated values for list fields (e.g. NOTIFY_CHANNELS=ntfy,email)
+        env_parse_none_str="none",
     )
 
     # ── Project paths ────────────────────────────────────────────────────────
@@ -30,8 +33,12 @@ class Settings(BaseSettings):
     # ── Notification channels ────────────────────────────────────────────────
     # Comma-separated list of channels to use.
     # Supported values: ntfy, telegram, email, whatsapp
-    # Example: NOTIFY_CHANNELS=ntfy,email
-    notify_channels: list[str] = ["ntfy"]
+    # In .env use:  NOTIFY_CHANNELS=ntfy,email
+    notify_channels: str = "ntfy"
+
+    @property
+    def notify_channels_list(self) -> list[str]:
+        return [ch.strip() for ch in self.notify_channels.split(",") if ch.strip()]
 
     # Telegram
     telegram_bot_token: str = ""
@@ -59,13 +66,18 @@ class Settings(BaseSettings):
     ntfy_priority: str = "high"      # min | low | default | high | urgent
 
     # ── AI / LLM ─────────────────────────────────────────────────────────────
-    claude_api_key: str = ""
-    claude_model: str = "claude-3-5-sonnet-20241022"
+    gemini_api_key: str = ""
+    gemini_model: str = "models/gemini-flash-latest"
+    gemini_model_fallback: str = "models/gemini-flash-lite-latest"
     # How many days after an analysis to check actual outcome
     agent_feedback_days: int = 7
 
     # ── CORS (for local React dev server) ────────────────────────────────────
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     # ── Logging ──────────────────────────────────────────────────────────────
     log_level: str = "INFO"

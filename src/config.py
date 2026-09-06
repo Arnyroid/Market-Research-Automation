@@ -9,7 +9,7 @@ from pathlib import Path
 PLATFORM = sys.platform
 
 # Project directories
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
 LOGS_DIR = BASE_DIR / "logs"
 

@@ -80,6 +80,8 @@ class Trade(Base):
     price: Mapped[float] = mapped_column(Float, nullable=False)
     brokerage: Mapped[float] = mapped_column(Float, default=0.0)
     notes: Mapped[str] = mapped_column(Text, nullable=True)
+    # Populated by _recalculate_portfolio for SELL trades — FIFO realized gain/loss
+    realized_pnl: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -120,6 +122,7 @@ class Alert(Base):
     condition_type: Mapped[str] = mapped_column(String(20), nullable=False)
     threshold: Mapped[float] = mapped_column(Float, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    repeating: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -198,6 +201,8 @@ class AgentFeedback(Base):
     evaluated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     # True if the risk_flag was directionally correct, None if undecided
     was_flag_useful: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # True if the BUY/HOLD/SELL/AVOID recommendation was accurate, None if undecided
+    was_rec_accurate: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     analysis: Mapped["AgentAnalysis"] = relationship(back_populates="feedback")
 
