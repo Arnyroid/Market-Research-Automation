@@ -2,12 +2,17 @@
 One-time database migration script.
 
 Adds columns that were introduced in later versions of the schema
-but are missing from databases created with an older version:
-
-  alerts.repeating       BOOLEAN NOT NULL DEFAULT 0
-  trades.realized_pnl    FLOAT (nullable)
+but are missing from databases created with an older version.
 
 Safe to run multiple times — skips columns that already exist.
+
+Columns covered:
+  alerts.repeating                    BOOLEAN NOT NULL DEFAULT 0
+  trades.realized_pnl                 FLOAT   (nullable)
+  agent_analysis.fundamentals_snapshot TEXT/JSON (nullable)
+  agent_analysis.structured_output    TEXT/JSON (nullable)
+  agent_analysis.target_review_date   TEXT      (nullable)
+  agent_analysis.news_context         TEXT/JSON (nullable)
 
 Usage (from repo root, with venv activated):
   python scripts/migrate_db.py
@@ -16,6 +21,15 @@ import pathlib
 import sqlite3
 
 DB_PATH = pathlib.Path(__file__).resolve().parents[1] / "data" / "portfolio.db"
+
+
+def add_if_missing(cur: sqlite3.Cursor, table: str, column: str, col_type: str) -> None:
+    existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+        print(f"✓  Added {table}.{column}")
+    else:
+        print(f"–  {table}.{column} already present, skipping")
 
 
 def migrate():
@@ -27,21 +41,17 @@ def migrate():
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
 
-    # ── alerts.repeating ─────────────────────────────────────────────────────
-    existing_alerts = {row[1] for row in cur.execute("PRAGMA table_info(alerts)")}
-    if "repeating" not in existing_alerts:
-        cur.execute("ALTER TABLE alerts ADD COLUMN repeating BOOLEAN NOT NULL DEFAULT 0")
-        print("✓  Added alerts.repeating")
-    else:
-        print("–  alerts.repeating already present, skipping")
+    # ── alerts ────────────────────────────────────────────────────────────────
+    add_if_missing(cur, "alerts", "repeating", "BOOLEAN NOT NULL DEFAULT 0")
 
-    # ── trades.realized_pnl ───────────────────────────────────────────────────
-    existing_trades = {row[1] for row in cur.execute("PRAGMA table_info(trades)")}
-    if "realized_pnl" not in existing_trades:
-        cur.execute("ALTER TABLE trades ADD COLUMN realized_pnl FLOAT")
-        print("✓  Added trades.realized_pnl")
-    else:
-        print("–  trades.realized_pnl already present, skipping")
+    # ── trades ────────────────────────────────────────────────────────────────
+    add_if_missing(cur, "trades", "realized_pnl", "FLOAT")
+
+    # ── agent_analysis ────────────────────────────────────────────────────────
+    add_if_missing(cur, "agent_analysis", "fundamentals_snapshot", "TEXT")
+    add_if_missing(cur, "agent_analysis", "structured_output",     "TEXT")
+    add_if_missing(cur, "agent_analysis", "target_review_date",    "TEXT")
+    add_if_missing(cur, "agent_analysis", "news_context",          "TEXT")
 
     con.commit()
     con.close()
