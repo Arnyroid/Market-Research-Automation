@@ -501,9 +501,9 @@ export default function StockDetailPage() {
   const ltp  = snap?.current_price;
   const pct1 = snap?.pct_change_1d;
 
-  const hasOverlays  = closes.length >= 20;
-  const hasDMA50     = closes.length >= 50;
-  const hasDMA200    = closes.length >= 200;
+  const hasOverlays  = history.length >= 20;
+  const hasDMA50     = history.length >= 50;
+  const hasDMA200    = history.length >= 200;
 
   // ── OPM bar chart data ────────────────────────────────────────────────────
   const opmChartData = (fund?.opm_trend ?? []).map((v, i) => ({
