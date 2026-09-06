@@ -89,6 +89,22 @@ def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
     db.add(alert)
     db.commit()
     db.refresh(alert)
+
+    # Evaluate immediately in case the condition is already satisfied.
+    # This handles "set alert when price already past threshold" — without this
+    # the user would wait until the next market-hours poll tick (up to 5 min,
+    # or never if the market is closed).
+    # Best-effort: failure here must not break the create response.
+    try:
+        from backend.app.services.data_fetch import fetch_quote
+        from backend.app.services.alert_engine import check_alerts
+        quote = fetch_quote(payload.symbol, payload.exchange.upper())
+        if quote and quote.ltp:
+            check_alerts(payload.symbol, payload.exchange.upper(), quote.ltp, None, db)
+            db.commit()
+    except Exception:
+        pass  # non-fatal — alert is saved, poller will evaluate it next tick
+
     return alert
 
 

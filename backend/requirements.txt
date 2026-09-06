@@ -30,6 +30,8 @@ httpx>=0.27.0           # Telegram, WhatsApp (Twilio REST), ntfy HTTP calls
 # ── Data processing ───────────────────────────────────────────────────────────
 pandas>=2.0.0
 pytz>=2024.1           # IST timezone for market-hours gating
+beautifulsoup4>=4.12.0  # screener.in HTML scraping for fundamental data
+lxml>=5.0.0             # fast HTML parser backend for BeautifulSoup
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 loguru>=0.7.0

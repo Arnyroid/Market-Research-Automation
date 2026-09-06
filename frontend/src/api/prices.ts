@@ -23,8 +23,8 @@ export interface OHLCVBar {
 }
 
 export const pricesApi = {
-  getQuote:   (symbol: string, exchange: string) =>
-    apiFetch<Quote>(`/prices/${symbol}?exchange=${exchange}`),
-  getHistory: (symbol: string, exchange: string, days = 30) =>
-    apiFetch<OHLCVBar[]>(`/prices/${symbol}/history?exchange=${exchange}&days=${days}`),
+  getQuote:   (symbol: string, exchange: string, signal?: AbortSignal) =>
+    apiFetch<Quote>(`/prices/${symbol}?exchange=${exchange}`, {}, signal),
+  getHistory: (symbol: string, exchange: string, days = 30, signal?: AbortSignal) =>
+    apiFetch<OHLCVBar[]>(`/prices/${symbol}/history?exchange=${exchange}&days=${days}`, {}, signal),
 };

@@ -20,8 +20,8 @@ export interface Analysis {
 }
 
 export const analysisApi = {
-  getLatest:  (symbol: string, exchange: string) =>
-    apiFetch<Analysis>(`/analysis/${symbol}?exchange=${exchange}`),
+  getLatest:  (symbol: string, exchange: string, signal?: AbortSignal) =>
+    apiFetch<Analysis>(`/analysis/${symbol}?exchange=${exchange}`, {}, signal),
   refresh:    (symbol: string, exchange: string) =>
     apiFetch<{ detail: string }>(`/analysis/${symbol}/refresh?exchange=${exchange}`, { method: "POST" }),
   getHistory: (symbol: string, exchange: string, limit = 5) =>

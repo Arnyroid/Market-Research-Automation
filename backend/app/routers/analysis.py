@@ -1,9 +1,12 @@
 """
 Analysis router — cached AI analysis per symbol and on-demand refresh.
+Also exposes a /fundamentals/{symbol} endpoint backed by screener.in (24h cached).
 """
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
@@ -25,6 +28,7 @@ class AnalysisOut(BaseModel):
     generated_at: datetime
     risk_flag: str | None
     indicators_snapshot: dict | None
+    fundamentals_snapshot: dict | None = None
     structured_output: dict | None
     llm_output: str | None
     target_review_date: str | None   # stored as YYYY-MM-DD plain string
@@ -92,6 +96,28 @@ def get_analysis_history(
     )
 
 
+@router.get("/{symbol}/fundamentals")
+def get_fundamentals(symbol: str, exchange: str = "NSE", force: bool = False) -> dict[str, Any]:
+    """
+    Return scraped fundamental data from screener.in for the given symbol.
+    Results are cached 24 hours in the scraping service.
+
+    Pass ?force=true to bypass the cache and re-scrape immediately.
+
+    Always returns a JSON object — if scraping fails the response contains
+    an "error" key describing the problem and all data keys will be null.
+    """
+    from backend.app.services.data_fetch import fetch_fundamentals
+    result = fetch_fundamentals(symbol.upper(), exchange=exchange, force=force)
+    if result is None:
+        raise HTTPException(
+            status_code=503,
+            detail="beautifulsoup4 is not installed — run: pip install beautifulsoup4 lxml",
+        )
+    # Convert dataclass to dict (nested dataclasses → dicts too)
+    return _fundamentals_to_dict(result)
+
+
 # ── Background helper ─────────────────────────────────────────────────────────
 
 def _run_and_store(symbol: str, exchange: str) -> None:
@@ -108,3 +134,14 @@ def _run_and_store(symbol: str, exchange: str) -> None:
         db.rollback()
     finally:
         db.close()
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _fundamentals_to_dict(obj: Any) -> Any:
+    """Recursively convert dataclass instances to plain dicts for JSON serialisation."""
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return {k: _fundamentals_to_dict(v) for k, v in dataclasses.asdict(obj).items()}
+    if isinstance(obj, list):
+        return [_fundamentals_to_dict(i) for i in obj]
+    return obj

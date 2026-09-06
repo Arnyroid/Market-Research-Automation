@@ -1,721 +1,293 @@
-# Market Research Automation - BSE Stock Data Fetcher & Portfolio Tracker
+# StockAI — Personal Indian Equities Tracker
 
-Comprehensive system to fetch BSE (Bombay Stock Exchange) stock data and track your investment portfolio with automated price updates, P&L calculations, and detailed analytics.
+A full-stack web application for tracking NSE and BSE equities with real-time prices, AI-powered analysis, portfolio management, and configurable push alerts.
 
-## 🌟 Features
-
-### Stock Data Fetching
-- 🔄 **Automated Fetching**: Fetch BSE stock data at configurable intervals
-- 📊 **Real-time Data**: Uses official `bsedata` library for accurate, real-time stock prices
-- 💰 **Price Tracking**: Get current prices, changes, and percentage movements
-- 📋 **Custom Stock Lists**: Track your own portfolio or watchlist of stocks
-- ⏰ **Flexible Scheduling**: Run once, at intervals, daily, or during market hours
-- 💾 **Data Storage**: Saves data to CSV files with timestamps
-- 🔁 **Retry Logic**: Automatic retry on failures with configurable attempts
-- 📝 **Comprehensive Logging**: Detailed logs for monitoring and debugging
-
-### Portfolio Management
-- ⚡ **Quick Command Line Entry**: Add trades instantly without creating files
-- 📈 **Trade Tracking**: Import and track all your BUY/SELL transactions
-- 💼 **Portfolio Analytics**: Real-time portfolio valuation and performance metrics
-- 📊 **P&L Calculation**: Automatic profit/loss calculation using FIFO method
-- 🎯 **Realized vs Unrealized**: Separate tracking of realized and unrealized gains
-- 📱 **Interactive Dashboard**: CLI dashboard with multiple viewing options
-- 🔄 **Automatic Price Updates**: Fetch live prices for all portfolio stocks
-- 📁 **Excel/CSV Import**: Easy trade import from Excel or CSV files (bulk import)
-- 🗄️ **SQLite Database**: Efficient local storage with full transaction history
-
-## 📁 Project Structure
-
-```
-Market-Research-Automation/
-├── README.md                   # This file
-├── .env.example                # Environment variables template
-├── setup.bat / setup.sh        # One-click setup scripts
-├── start.bat                   # One-click start script
-│
-├── backend/                    # Python FastAPI backend
-│   ├── app/
-│   │   ├── main.py             # FastAPI entry point
-│   │   ├── models.py           # SQLAlchemy ORM models
-│   │   ├── routers/            # API endpoints
-│   │   ├── services/           # Business logic
-│   │   └── jobs/               # Background jobs
-│   └── requirements.txt        # Python dependencies
-│
-├── frontend/                   # React + Vite frontend
-│   ├── src/
-│   │   ├── pages/              # React pages
-│   │   ├── api/                # API client
-│   │   └── hooks/              # Custom hooks
-│   └── package.json
-│
-├── src/                        # Standalone Python module (legacy)
-│   ├── config.py               # Module configuration
-│   ├── bse_fetcher.py          # BSE data fetching
-│   ├── portfolio_db.py         # SQLite database management
-│   ├── portfolio_analyzer.py   # P&L calculations
-│   └── ...
-│
-├── scripts/                    # Utility scripts
-│   ├── add_trade.py            # Quick command-line trade entry
-│   ├── report_generator.py     # Report generation
-│   └── ...
-│
-├── docs/                       # All documentation
-│   ├── QUICK_START.md
-│   ├── SETUP_GUIDE.md
-│   ├── ARCHITECTURE.md
-│   └── *.md
-│
-├── data/                       # Stock data CSV files & portfolio.db
-├── logs/                       # Application logs
-└── tests/                      # Test suite
-```
-
-## 🚀 Installation
-
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd Market-Research-Automation
-```
-
-2. **Create virtual environment** (recommended)
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Install dependencies**
-```bash
-pip install -r requirements.txt
-```
-
-4. **Configure environment** (optional)
-```bash
-cp .env.example .env
-# Edit .env with your preferred settings
-```
-
-## 📖 Quick Start
-
-### Stock Data Fetching
-
-```bash
-# Fetch stock data once
-python scheduler.py once
-
-# Fetch your custom stock list
-python scheduler.py once --custom
-
-# Run every 30 minutes
-python scheduler.py interval 30
-
-# Run during market hours
-python scheduler.py market
-```
-
-### Portfolio Management
-
-#### Method 1: Quick Command Line Entry (Fastest) ⚡
-
-```bash
-# Add a BUY trade instantly (no file needed!)
-python add_trade.py -c 500325 -n "Reliance Industries Ltd" -q 10 -p 1450.00
-
-# Add a SELL trade
-python add_trade.py -c 500325 -n "Reliance Industries Ltd" -q 5 -p 1600.00 -t SELL
-
-# Interactive mode (guided entry)
-python add_trade.py --interactive
-
-# Update prices and view portfolio
-python price_updater.py --all
-python portfolio_dashboard.py --all
-```
-
-📖 **See [COMMAND_LINE_TRADE_ENTRY.md](COMMAND_LINE_TRADE_ENTRY.md) for complete guide**
-
-#### Method 2: Bulk Import from Excel/CSV
-
-```bash
-# 1. Generate template
-python trade_importer.py --template trades.xlsx
-
-# 2. Edit trades.xlsx with your transactions
-
-# 3. Import trades
-python trade_importer.py --file trades.xlsx
-
-# 4. Update prices and view
-python price_updater.py --all
-python portfolio_dashboard.py --all
-```
-
-📖 **See [BUY_TRANSACTION_GUIDE.md](BUY_TRANSACTION_GUIDE.md) for detailed instructions**
-
-## 📊 Portfolio Management Features
-
-### 1. Add Trades (Two Methods)
-
-#### Method A: Quick Command Line Entry ⚡ (Recommended for Daily Use)
-
-**Add BUY trade instantly:**
-```bash
-python add_trade.py -c 500325 -n "Reliance Industries Ltd" -q 10 -p 1450.00
-```
-
-**Add SELL trade:**
-```bash
-python add_trade.py -c 500325 -n "Reliance Industries Ltd" -q 5 -p 1600.00 -t SELL
-```
-
-**Interactive mode (guided):**
-```bash
-python add_trade.py --interactive
-```
-
-**With specific date:**
-```bash
-python add_trade.py -d 2025-01-15 -c 500325 -n "Reliance Industries Ltd" -q 10 -p 1450.00
-```
-
-**Common scrip codes:**
-- `500325` - Reliance Industries Ltd
-- `532540` - TCS Ltd
-- `500180` - HDFC Bank Ltd
-- `500112` - State Bank of India
-- `500209` - Infosys Ltd
-
-📖 **See [COMMAND_LINE_TRADE_ENTRY.md](COMMAND_LINE_TRADE_ENTRY.md) for complete guide**
-
-#### Method B: Bulk Import from Excel/CSV (For Multiple Trades)
-
-**Generate Template:**
-```bash
-python trade_importer.py --template my_trades.xlsx
-```
-
-**Import from Excel/CSV:**
-```bash
-python trade_importer.py --file trades.xlsx
-python trade_importer.py --file trades.csv
-```
-
-**Trade File Format:**
-```csv
-trade_date,scrip_code,scrip_name,quantity,price,trade_type
-2025-01-15,500325,Reliance Industries Ltd,10,1450.00,BUY
-2025-01-20,532540,TCS Ltd,5,3320.00,BUY
-2025-12-27,500325,Reliance Industries Ltd,5,1600.00,SELL
-```
-
-📖 **See [BUY_TRANSACTION_GUIDE.md](BUY_TRANSACTION_GUIDE.md) for detailed instructions**
-
-### 2. Update Prices
-
-**Update all portfolio stocks:**
-```bash
-python price_updater.py --all
-```
-
-**Update specific stock:**
-```bash
-python price_updater.py --scrip 500325
-```
-
-### 3. View Portfolio Dashboard
-
-**Complete dashboard:**
-```bash
-python portfolio_dashboard.py --all
-```
-
-**Output includes:**
-- Portfolio summary (total invested, current value, P&L)
-- Performance breakdown (gainers, losers)
-- Best and worst performers
-- Current holdings with individual P&L
-- Recent trades history
-
-**View specific sections:**
-```bash
-# Summary only
-python portfolio_dashboard.py --summary
-
-# Holdings only
-python portfolio_dashboard.py --holdings
-
-# Recent trades
-python portfolio_dashboard.py --trades
-
-# Analyze specific stock
-python portfolio_dashboard.py --stock 500325
-```
-
-### 4. Recording SELL Transactions
-
-#### Quick Method (Command Line):
-```bash
-# Sell shares instantly
-python add_trade.py -c 500325 -n "Reliance Industries Ltd" -q 5 -p 1600.00 -t SELL
-
-# View changes
-python portfolio_dashboard.py --all
-```
-
-#### Bulk Method (CSV Import):
-Create a CSV file with your sale:
-```csv
-trade_date,scrip_code,scrip_name,quantity,price,trade_type
-2025-12-27,500325,Reliance Industries Ltd,5,1600.00,SELL
-```
-
-Import and view changes:
-```bash
-python trade_importer.py --file sell.csv
-python portfolio_dashboard.py --all
-```
-
-The system automatically:
-- Calculates realized P&L using FIFO method
-- Updates holdings quantity
-- Tracks both realized and unrealized gains
-- Shows complete transaction history
-
-📖 **See [SELL_TRANSACTION_GUIDE.md](SELL_TRANSACTION_GUIDE.md) for detailed guide**
-
-## 📈 Portfolio Dashboard Example
-
-```
-📊 PORTFOLIO SUMMARY
-+----------------+------------+
-| Total Stocks   | 3          |
-| Total Invested | ₹65,710.00 |
-| Current Value  | ₹67,427.00 |
-| Total P&L      | ₹1,717.00  |
-| P&L %          | 2.61%      |
-| Realized P&L   | ₹750.00    |
-+----------------+------------+
-
-💼 CURRENT HOLDINGS
-Code   | Name                    | Qty | Avg Price | Current   | Value      | P&L       | P&L %
-500325 | Reliance Industries Ltd | 15  | ₹1,455.00 | ₹1,559.00 | ₹23,385.00 | ₹1,560.00 | 6.67%
-500180 | HDFC Bank Ltd           | 20  | ₹999.00   | ₹992.40   | ₹19,848.00 | ₹-132.00  | -0.66%
-532540 | TCS Ltd                 | 5   | ₹3,326.00 | ₹3,279.80 | ₹16,399.00 | ₹-231.00  | -1.39%
-```
-
-## 🔧 Stock Data Fetching Usage
-
-### Quick Start - Run Once
-
-```bash
-# Fetch top gainers/losers
-python scheduler.py once
-
-# Fetch your custom stock list
-python scheduler.py once --custom
-```
-
-### Custom Stock Lists
-
-Track your own portfolio or watchlist:
-
-1. **Edit `custom_scrips.txt`** with your stock codes:
-```text
-500325  # Reliance Industries
-532540  # TCS
-500180  # HDFC Bank
-```
-
-2. **Run with `--custom` flag**:
-```bash
-python scheduler.py once --custom
-python scheduler.py interval 30 --custom
-```
-
-📖 **See [CUSTOM_SCRIPS_GUIDE.md](CUSTOM_SCRIPS_GUIDE.md) for detailed instructions**
-
-### Scheduled Modes
-
-#### 1. Interval Mode (Default)
-```bash
-# Run every 60 minutes (default)
-python scheduler.py interval
-
-# Run every 30 minutes
-python scheduler.py interval 30
-
-# With custom scrips
-python scheduler.py interval 30 --custom
-```
-
-#### 2. Daily Mode
-```bash
-# Run daily at 9:30 AM (default)
-python scheduler.py daily
-
-# Run daily at 2:00 PM
-python scheduler.py daily 14:00
-
-# With custom scrips
-python scheduler.py daily 09:30 --custom
-```
-
-#### 3. Market Hours Mode
-```bash
-python scheduler.py market
-
-# With custom scrips
-python scheduler.py market --custom
-```
-
-Runs at: 9:15 AM, 10:00 AM, 11:00 AM, 12:00 PM, 1:00 PM, 2:00 PM, 3:00 PM, 3:30 PM (IST)
-
-### Using as a Module
-
-```python
-from bse_fetcher import BSEStockFetcher
-
-# Create fetcher instance
-fetcher = BSEStockFetcher()
-
-# Fetch stocks with current prices
-df = fetcher.fetch_stocks(include_prices=True)
-
-if df is not None:
-    print(f"Fetched {len(df)} stocks")
-    print(f"Average price: ₹{df['last_price'].mean():.2f}")
-    
-    # Save to CSV
-    fetcher.save_to_csv(df)
-    
-    # Get statistics
-    stats = fetcher.get_stock_count()
-    print(stats)
-
-# Fetch individual stock quote
-quote = fetcher.fetch_stock_quote("500325")  # Reliance
-if quote:
-    print(f"Reliance: ₹{quote['currentValue']}")
-```
-
-## ⚙️ Configuration
-
-Edit `.env` file or modify `config.py` directly:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `FETCH_INTERVAL_MINUTES` | 60 | Minutes between fetches in interval mode |
-| `FETCH_TIME` | 09:30 | Time for daily fetch (HH:MM format, IST) |
-| `MAX_RETRIES` | 3 | Maximum retry attempts on failure |
-| `RETRY_DELAY_SECONDS` | 5 | Seconds to wait between retries |
-
-## 💾 Data Storage
-
-### Stock Data (CSV Files)
-
-1. **Timestamped files**: `data/bse_stocks_YYYYMMDD_HHMMSS.csv`
-   - Historical record of each fetch
-   
-2. **Master file**: `data/bse_stocks_master.csv`
-   - Always contains the latest data
-   - Overwritten on each successful fetch
-
-**Data Columns:**
-- `securityID`: Security identifier (e.g., RELIANCE, TCS)
-- `scrip_code`: BSE scrip code (e.g., 500325)
-- `last_price`: Current trading price (₹)
-- `price_change`: Absolute price change (₹)
-- `price_change_percent`: Percentage price change (%)
-- `category`: Stock category (TOP_GAINER, TOP_LOSER, etc.)
-- `timestamp`: Fetch timestamp (ISO 8601)
-- `source`: Data source (BSEDATA_LIBRARY)
-
-### Portfolio Database (SQLite)
-
-**Location:** `data/portfolio.db`
-
-**Tables:**
-1. **trades** - All buy/sell transactions
-2. **portfolio** - Current holdings with P&L
-3. **price_history** - Historical price data
-
-**Direct Access:**
-```bash
-sqlite3 data/portfolio.db
-SELECT * FROM portfolio;
-SELECT * FROM trades ORDER BY trade_date DESC;
-```
-
-## 📝 Logging
-
-Logs are stored in `logs/stock_fetcher.log` with:
-- Daily rotation
-- 30-day retention
-- Detailed information about each operation
-- Error tracking and debugging information
-
-## 🔄 Running as a Background Service
-
-### Linux/Mac (using systemd)
-
-1. Create service file `/etc/systemd/system/bse-fetcher.service`:
-```ini
-[Unit]
-Description=BSE Stock Data Fetcher
-After=network.target
-
-[Service]
-Type=simple
-User=your-username
-WorkingDirectory=/path/to/Market-Research-Automation
-ExecStart=/path/to/venv/bin/python scheduler.py interval 60
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-2. Enable and start:
-```bash
-sudo systemctl enable bse-fetcher
-sudo systemctl start bse-fetcher
-sudo systemctl status bse-fetcher
-```
-
-### Windows (using Task Scheduler)
-
-1. Open Task Scheduler
-2. Create Basic Task
-3. Set trigger (e.g., "At startup")
-4. Action: Start a program
-   - Program: `python.exe`
-   - Arguments: `scheduler.py interval 60`
-   - Start in: `C:\path\to\Market-Research-Automation`
-
-### Using Docker
-
-Create `Dockerfile`:
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-CMD ["python", "scheduler.py", "interval", "60"]
-```
-
-Build and run:
-```bash
-docker build -t bse-fetcher .
-docker run -d --name bse-fetcher -v $(pwd)/data:/app/data -v $(pwd)/logs:/app/logs bse-fetcher
-```
-
-## 🔍 Troubleshooting
-
-### Stock Data Fetching
-
-**No data fetched:**
-- Check internet connection
-- Verify BSE website is accessible (bseindia.com)
-- Check logs in `logs/stock_fetcher.log`
-- Try running once: `python scheduler.py once`
-- The bsedata library may have rate limits - use intervals of 30+ minutes
-
-**Import errors:**
-- Ensure all dependencies are installed: `pip install -r requirements.txt`
-- Specifically install bsedata: `pip install bsedata`
-- Activate virtual environment if using one
-
-**Permission errors:**
-- Ensure write permissions for `data/` and `logs/` directories
-- Run: `chmod -R 755 data logs` (Linux/Mac)
-
-### Portfolio Management
-
-**Trade import fails:**
-- Check CSV/Excel file format
-- Use template: `python trade_importer.py --template trades.xlsx`
-- Verify column names match requirements
-- Check date format (YYYY-MM-DD)
-
-**Wrong P&L calculation:**
-- Verify all trades are imported correctly
-- Check trade dates are in correct order
-- System uses FIFO method for cost basis
-- View detailed analysis: `python portfolio_dashboard.py --stock <code>`
-
-**Prices not updating:**
-- Check internet connection
-- Verify BSE website is accessible
-- Try updating single stock: `python price_updater.py --scrip 500325`
-- Check if market is open (9:15 AM - 3:30 PM IST)
-
-**Database locked:**
-- Close any other programs accessing the database
-- Check for processes: `lsof data/portfolio.db`
-- Restart the application
-
-## 📚 Documentation
-
-Comprehensive guides available in the [`docs/`](docs/) folder:
-
-- **[docs/PORTFOLIO_USAGE_GUIDE.md](docs/PORTFOLIO_USAGE_GUIDE.md)** - Complete portfolio management guide
-- **[docs/SELL_TRANSACTION_GUIDE.md](docs/SELL_TRANSACTION_GUIDE.md)** - How to record SELL transactions
-- **[docs/CUSTOM_SCRIPS_GUIDE.md](docs/CUSTOM_SCRIPS_GUIDE.md)** - Custom stock list management
-- **[docs/SCHEMA_OPTIMIZATION.md](docs/SCHEMA_OPTIMIZATION.md)** - Database optimization for large portfolios
-- **[docs/QUICK_START.md](docs/QUICK_START.md)** - Quick start guide
-
-## 🎯 Common Workflows
-
-### Daily Trading Routine (Quick Entry)
-```bash
-# 1. Add trade instantly
-python add_trade.py -c 500325 -n "Reliance Industries Ltd" -q 10 -p 1450.00
-
-# 2. Update prices
-python price_updater.py --all
-
-# 3. View portfolio
-python portfolio_dashboard.py --all
-```
-
-### Recording a Sale (Quick)
-```bash
-# 1. Sell shares
-python add_trade.py -c 500325 -n "Reliance Industries Ltd" -q 5 -p 1600.00 -t SELL
-
-# 2. View changes
-python portfolio_dashboard.py --all
-```
-
-### Multiple Trades in Sequence
-```bash
-# Add multiple trades
-python add_trade.py -c 500325 -n "Reliance Industries Ltd" -q 10 -p 1450.00
-python add_trade.py -c 532540 -n "TCS Ltd" -q 5 -p 3320.00
-python add_trade.py -c 500180 -n "HDFC Bank Ltd" -q 20 -p 997.00
-
-# Update and view
-python price_updater.py --all
-python portfolio_dashboard.py --all
-```
-
-### Bulk Import (Historical Data)
-```bash
-# 1. Generate template
-python trade_importer.py --template historical_trades.xlsx
-
-# 2. Fill in all your past trades in Excel
-
-# 3. Import
-python trade_importer.py --file historical_trades.xlsx
-
-# 4. Update prices
-python price_updater.py --all
-
-# 5. View portfolio
-python portfolio_dashboard.py --all
-```
-
-### Daily Portfolio Check
-```bash
-# Update prices (after market close)
-python price_updater.py --all
-
-# View portfolio
-python portfolio_dashboard.py --all
-```
-
-### Monthly Review
-```bash
-# 1. Update all prices
-python price_updater.py --all
-
-# 2. View complete dashboard
-python portfolio_dashboard.py --all
-
-# 3. Analyze each stock
-python portfolio_dashboard.py --stock 500325
-
-# 4. Backup database
-cp data/portfolio.db data/portfolio_backup_$(date +%Y%m%d).db
-```
-
-## 🌐 Data Source Information
-
-This project uses the **bsedata** Python library:
-- Official BSE data source
-- Real-time stock prices and changes
-- Top gainers and losers
-- Individual stock quotes
-- Recommended fetch interval: 30-60 minutes to respect rate limits
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📄 License
-
-MIT License - feel free to use this project for your needs.
-
-## ⚠️ Disclaimer
-
-This tool is for educational and research purposes. Always verify data accuracy and comply with BSE's terms of service. Not financial advice.
-
-## 💡 Support
-
-For issues or questions:
-- Check the documentation guides in [`docs/`](docs/)
-- Review logs: `logs/stock_fetcher.log`
-- Check configuration: `src/config.py`
-
-## 📚 Documentation
-
-Comprehensive guides available in the [`docs/`](docs/) folder:
-
-- **[docs/COMMAND_LINE_TRADE_ENTRY.md](docs/COMMAND_LINE_TRADE_ENTRY.md)** - Quick command-line trade entry
-- **[docs/BUY_TRANSACTION_GUIDE.md](docs/BUY_TRANSACTION_GUIDE.md)** - Complete guide for recording purchases
-- **[docs/SELL_TRANSACTION_GUIDE.md](docs/SELL_TRANSACTION_GUIDE.md)** - How to record SELL transactions
-- **[docs/PORTFOLIO_USAGE_GUIDE.md](docs/PORTFOLIO_USAGE_GUIDE.md)** - Complete portfolio management guide
-- **[docs/CUSTOM_SCRIPS_GUIDE.md](docs/CUSTOM_SCRIPS_GUIDE.md)** - Custom stock list management
-- **[docs/SCHEMA_OPTIMIZATION.md](docs/SCHEMA_OPTIMIZATION.md)** - Database optimization for large portfolios
-- **[docs/QUICK_START.md](docs/QUICK_START.md)** - Quick start guide
-- Open an issue on GitHub
-
-## 🚀 Future Enhancements
-
-### Completed ✅
-- [x] Database storage (SQLite)
-- [x] Portfolio tracking system
-- [x] Real-time price updates
-- [x] P&L calculations (FIFO method)
-- [x] Trade import from Excel/CSV
-- [x] Quick command-line trade entry (NEW!)
-- [x] Interactive CLI dashboard
-- [x] Realized vs Unrealized P&L tracking
-
-### Planned 📋
-- [ ] Report generator (Excel/PDF exports)
-- [ ] Email/SMS notifications for price alerts
-- [ ] Web dashboard for monitoring
-- [ ] Support for NSE stocks
-- [ ] Historical data analysis and charts
-- [ ] API endpoint for data access
-- [ ] Mobile app integration
-- [ ] Tax reporting features
-- [ ] Dividend tracking
-- [ ] Multi-currency support
+**Stack:** FastAPI 0.115 · SQLAlchemy 2 · SQLite · React 18 · Vite 5 · TypeScript · Tailwind CSS 3 · Recharts 2 · Google Gemini (free tier)
 
 ---
 
-**Happy Investing! 📈💰**
+## Features
+
+| Area | What it does |
+|---|---|
+| **Watchlist** | Track any NSE/BSE symbol · live LTP, day range bar, volume · staleness badge · NSE\|BSE toggle · Bell quick-alert |
+| **Portfolio** | FIFO cost basis · unrealized & realized P&L · colour-coded holdings · cap-tier analytics (Large/Mid/Small) · fuel gauge · CSV export |
+| **Alerts** | Price-above/below, % change triggers · repeating option · ntfy / Telegram / Email / WhatsApp delivery · immediate evaluation on creation |
+| **AI Analysis** | Per-stock Gemini analysis: RSI, SMA/EMA, fundamentals, news context · 24h cache · in-flight dedup |
+| **AI Portfolio Review** | Full portfolio health check: BUY\_MORE / HOLD / TRIM / EXIT per holding · rebalance & risk notes |
+| **Industry Dashboard** | Sector overview scraped from screener.in · AI Sector Pulse (BUY/HOLD/AVOID per L1 sector, 24h cache) |
+| **Risk Profile** | Time horizon, loss tolerance, experience level — fed into AI prompts |
+| **Corporate Actions** | Record dividends, bonuses, splits, rights issues; portfolio warns when any exist |
+
+---
+
+## Prerequisites
+
+| Requirement | Version | Notes |
+|---|---|---|
+| Python | **3.10 – 3.13** | 3.10.16 used in development; `python3` or `py` launcher |
+| Node.js | **18 LTS or 20 LTS** | Needed for the React frontend |
+| Git | any | |
+| Internet | — | yfinance + NSE CSV + screener.in scraping |
+
+> **Windows users:** see [docs/WINDOWS_SETUP.md](docs/WINDOWS_SETUP.md) for a step-by-step guide, known gotchas, and the Windows Task Scheduler service setup.
+
+---
+
+## Quick Setup
+
+### macOS / Linux
+
+```bash
+git clone <repo-url>
+cd Market-Research-Automation
+bash setup.sh          # creates .venv, installs deps, copies .env.example → .env
+```
+
+### Windows
+
+```bat
+git clone <repo-url>
+cd Market-Research-Automation
+setup.bat              # creates .venv, installs deps, copies .env.example → .env
+```
+
+---
+
+## Configuration
+
+Edit `.env` (created from `.env.example` by the setup script):
+
+| Variable | Required | Description |
+|---|---|---|
+| `GEMINI_API_KEY` | **Yes** (for AI) | Free at [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| `NTFY_TOPIC` | For alerts | Unique topic name from the [ntfy app](https://ntfy.sh) |
+| `GEMINI_MODEL` | No | Default: `models/gemini-flash-latest` |
+| `GEMINI_MODEL_FALLBACK` | No | Default: `models/gemini-flash-lite-latest` |
+| `PRICE_POLL_INTERVAL_MINUTES` | No | Default: `5` (during market hours 9:15–15:30 IST) |
+| `NOTIFY_CHANNELS` | No | Default: `ntfy` — can be `ntfy,telegram,email,whatsapp` |
+| `CORS_ORIGINS` | No | Default: `http://localhost:5173,http://localhost:3000` |
+
+For Telegram, Email (SMTP), and WhatsApp (Twilio) configuration see the comments in `.env.example`.
+
+---
+
+## Starting the App
+
+### macOS / Linux
+
+```bash
+# Terminal 1 — backend
+source .venv/bin/activate
+cd backend
+uvicorn app.main:app --reload --port 8000
+
+# Terminal 2 — frontend
+cd frontend
+npm run dev
+```
+
+### Windows
+
+```bat
+start.bat       ← opens both backend and frontend in separate windows
+```
+
+Or manually:
+
+```bat
+REM Terminal 1 — backend
+.venv\Scripts\activate
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+
+REM Terminal 2 — frontend
+cd frontend
+npm run dev
+```
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| Interactive API docs | http://localhost:8000/docs |
+
+---
+
+## Project Structure
+
+```
+Market-Research-Automation/
+│
+├── README.md
+├── .env.example            ← copy to .env, fill in API keys
+├── setup.sh / setup.bat    ← one-click setup
+├── start.bat               ← Windows one-click start
+│
+├── backend/
+│   ├── requirements.txt
+│   └── app/
+│       ├── main.py         ← FastAPI entry point + lifespan (DB init, scheduler)
+│       ├── models.py       ← SQLAlchemy ORM models
+│       ├── core/
+│       │   ├── config.py   ← pydantic-settings (reads .env)
+│       │   └── db.py       ← SQLite engine + SessionLocal
+│       ├── routers/        ← API endpoints
+│       │   ├── watchlist.py
+│       │   ├── prices.py
+│       │   ├── trades.py         ← portfolio + CSV export
+│       │   ├── alerts.py
+│       │   ├── analysis.py
+│       │   ├── market.py         ← industry overview + sector analysis
+│       │   ├── risk_profile.py
+│       │   └── corporate_actions.py
+│       ├── services/
+│       │   ├── data_fetch.py     ← yfinance quotes, NSE master CSV, screener.in scraping
+│       │   ├── ai_agent.py       ← Gemini per-stock analysis + sector analysis
+│       │   ├── alert_engine.py   ← alert evaluation logic
+│       │   ├── notifier.py       ← ntfy / Telegram / Email / WhatsApp dispatch
+│       │   └── indicators.py     ← RSI, SMA, EMA, volatility calculations
+│       └── jobs/
+│           ├── scheduler.py      ← APScheduler setup (IST timezone)
+│           ├── price_poller.py   ← runs every N min during market hours
+│           ├── agent_runner.py   ← daily 08:00 IST bulk AI analysis
+│           └── indicator_calc.py ← end-of-day 16:00 IST indicator refresh
+│
+├── frontend/
+│   ├── package.json
+│   └── src/
+│       ├── App.tsx               ← sidebar nav + routes + market status dot
+│       ├── api/                  ← typed API client modules
+│       │   ├── client.ts         ← ApiError class, apiFetch helper
+│       │   ├── watchlist.ts
+│       │   ├── trades.ts
+│       │   ├── prices.ts
+│       │   ├── analysis.ts
+│       │   ├── fundamentals.ts
+│       │   ├── market.ts
+│       │   └── corporateActions.ts
+│       ├── hooks/
+│       │   └── useSortFilter.ts  ← generic sort + filter hook with numericKeys
+│       └── pages/
+│           ├── Watchlist.tsx
+│           ├── Portfolio.tsx
+│           ├── Alerts.tsx
+│           ├── StockDetail.tsx
+│           ├── Industry.tsx
+│           └── RiskProfile.tsx
+│
+├── data/
+│   └── portfolio.db        ← SQLite database (auto-created on first run)
+├── logs/                   ← loguru rotating logs
+└── docs/                   ← detailed guides
+```
+
+---
+
+## Database
+
+SQLite at `data/portfolio.db`. Tables auto-created on first backend start — no migrations needed for a fresh install.
+
+| Table | Description |
+|---|---|
+| `watchlist` | Symbols being tracked |
+| `price_history` | Intraday OHLCV written by the price poller (one row per symbol per trading day, upserted) |
+| `trades` | All BUY/SELL transactions |
+| `portfolio` | Aggregated holdings — unique on `(symbol, exchange)` |
+| `alerts` | Active alert rules |
+| `alert_log` | Every time an alert fired |
+| `risk_profile` | Single-row user risk preferences |
+| `agent_analysis` | LLM analysis results per symbol |
+| `agent_feedback` | Outcome data written N days post-analysis |
+| `corporate_actions` | Dividends, bonuses, splits, rights |
+
+---
+
+## API Overview
+
+All endpoints are documented interactively at **http://localhost:8000/docs**.
+
+| Prefix | Notable endpoints |
+|---|---|
+| `GET /watchlist` | List watchlist; `POST` to add; `DELETE /{id}` to remove |
+| `GET /prices/{symbol}` | Live quote; `GET /prices/{symbol}/history` for OHLCV |
+| `GET /trades/portfolio` | Current holdings with P&L and cap tier |
+| `GET /trades/export` | Download all trades as CSV (`?symbol=` to filter) |
+| `POST /trades/portfolio/analyse` | Trigger AI portfolio review |
+| `POST /trades/import` | Bulk import trades from CSV/XLSX |
+| `GET /analysis/{symbol}/latest` | Latest AI analysis |
+| `POST /analysis/{symbol}/run` | Trigger new AI analysis |
+| `GET /analysis/{symbol}/fundamentals` | Scraped fundamentals (24h cached) |
+| `GET /market/overview` | Industry overview table |
+| `GET /market/sector-analysis` | AI Sector Pulse (24h cached) |
+| `GET /alerts` | List alerts; `POST` to create; `DELETE /{id}` to remove |
+| `GET /risk-profile` | User risk profile; `PUT` to update |
+| `GET /health` | `{"status": "ok"}` |
+
+---
+
+## Validating the Frontend Build
+
+```bash
+cd frontend && ./node_modules/.bin/vite build
+# Must produce: ✓ built — zero errors
+```
+
+On Windows:
+```bat
+cd frontend && node_modules\.bin\vite build
+```
+
+---
+
+## Notifications Setup
+
+### ntfy (recommended — zero signup)
+1. Install the ntfy app: [Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy) · [iOS](https://apps.apple.com/app/ntfy/id1625396347)
+2. Subscribe to a **private** topic name (treat it like a password)
+3. Set `NTFY_TOPIC=your-topic-name` in `.env`
+
+### Telegram
+1. Message [@BotFather](https://t.me/botfather) → `/newbot` → copy token
+2. Message your bot, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates` to get your chat ID
+3. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`
+4. Add `telegram` to `NOTIFY_CHANNELS=ntfy,telegram`
+
+### Email (Gmail / Outlook)
+Gmail: Account → Security → 2-Step Verification → App Passwords → generate one.  
+Set `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_TO` in `.env`, add `email` to `NOTIFY_CHANNELS`.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| **Backend won't start** | Activate venv first: `source .venv/bin/activate` (Mac/Linux) or `.venv\Scripts\activate` (Windows) |
+| **`ModuleNotFoundError: backend`** | Run uvicorn from the **repo root**, not from inside `backend/`: `uvicorn backend.app.main:app …` |
+| **Frontend can't reach backend** | Check `CORS_ORIGINS` in `.env` includes `http://localhost:5173`; ensure backend is running on port 8000 |
+| **No prices loading** | yfinance needs internet; check firewall; try `python -c "import yfinance; print(yfinance.__version__)"` |
+| **NSE symbol search empty** | NSE CSV download failed at startup — check logs; retry by restarting the backend |
+| **AI features return "no API key"** | Set `GEMINI_API_KEY` in `.env` and restart the backend |
+| **Alerts not firing** | Price poller only runs 9:15–15:30 IST Mon–Fri; alert is evaluated immediately on creation so it fires if condition is already met |
+| **`lxml` install fails on Windows** | Use a pre-built wheel: `pip install lxml --prefer-binary` |
+| **`ModuleNotFoundError: No module named '_lzma'`** | Windows Python from Microsoft Store lacks some stdlib modules; use the official python.org installer |
+
+---
+
+## Documentation
+
+| File | Contents |
+|---|---|
+| [docs/WINDOWS_SETUP.md](docs/WINDOWS_SETUP.md) | Step-by-step Windows guide, gotchas, Task Scheduler service setup |
+| [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) | Detailed cross-platform setup |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, data flow, component map |
+| [docs/QUICK_START.md](docs/QUICK_START.md) | Fastest path from clone to running |
+| [docs/ALERT_SYSTEM_GUIDE.md](docs/ALERT_SYSTEM_GUIDE.md) | Alert conditions, notification channels, repeating alerts |
+| [docs/PORTFOLIO_USAGE_GUIDE.md](docs/PORTFOLIO_USAGE_GUIDE.md) | Portfolio tracking, FIFO P&L, CSV export |
+| [docs/CORPORATE_ACTIONS_GUIDE.md](docs/CORPORATE_ACTIONS_GUIDE.md) | Recording dividends, bonuses, splits |
+
+---
+
+## Disclaimer
+
+This tool is for personal research and educational purposes only. It is not financial advice. Always verify data accuracy and consult a SEBI-registered advisor before making investment decisions.

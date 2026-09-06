@@ -1,202 +1,100 @@
-# Quick Start Guide - BSE Stock Fetcher
+# Quick Start
 
-## 🚀 Installation (5 minutes)
+Get StockAI running in under 5 minutes.
 
-### Option 1: Automated Setup (Recommended)
+---
 
-**Linux/Mac:**
+## 1. Clone and set up
+
+**macOS / Linux:**
 ```bash
-chmod +x setup.sh
-./setup.sh
+git clone <repo-url>
+cd Market-Research-Automation
+bash setup.sh
 ```
 
 **Windows:**
-```cmd
+```bat
+git clone <repo-url>
+cd Market-Research-Automation
 setup.bat
 ```
 
-### Option 2: Manual Setup
+The setup script creates `.venv/`, installs all Python and Node dependencies, and copies `.env.example` to `.env`.
 
+---
+
+## 2. Add your API key
+
+Open `.env` and set:
+```
+GEMINI_API_KEY=your-key-here
+```
+
+Get a free key at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) — no billing required.
+
+For push notifications, also set:
+```
+NTFY_TOPIC=my-private-topic-name
+```
+
+---
+
+## 3. Start
+
+**macOS / Linux — two terminals:**
 ```bash
-# Create virtual environment
-python3 -m venv venv
+# Terminal 1
+source .venv/bin/activate && uvicorn backend.app.main:app --reload --port 8000
 
-# Activate it
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
-
-# Install dependencies
-pip install -r requirements.txt
+# Terminal 2
+cd frontend && npm run dev
 ```
 
-## 📊 Usage Examples
-
-### 1. Test Run (Fetch Once)
-```bash
-# Top gainers/losers
-python scheduler.py once
-
-# Your custom stocks
-python scheduler.py once --custom
-```
-**Output:** Fetches stock data and saves to CSV
-
-### 2. Custom Stock List
-```bash
-# Edit custom_scrips.txt with your stocks
-nano custom_scrips.txt
-
-# Add your scrip codes:
-# 500325  # Reliance
-# 532540  # TCS
-# 500180  # HDFC Bank
-
-# Fetch your custom list
-python scheduler.py once --custom
-```
-**Use Case:** Track your portfolio or watchlist
-
-### 3. Continuous Monitoring (Every 30 minutes)
-```bash
-python scheduler.py interval 30
-python scheduler.py interval 30 --custom  # With custom stocks
-```
-**Use Case:** Regular market monitoring during trading hours
-
-### 4. Daily Update (9:30 AM)
-```bash
-python scheduler.py daily 09:30
-python scheduler.py daily 09:30 --custom  # With custom stocks
-```
-**Use Case:** Get market opening data daily
-
-### 5. Market Hours Only
-```bash
-python scheduler.py market
-python scheduler.py market --custom  # With custom stocks
-```
-**Use Case:** Active trading hours monitoring (9:15 AM - 3:30 PM IST)
-
-## 📁 Where to Find Your Data
-
-- **Latest Data:** `data/bse_stocks_master.csv`
-- **Historical Data:** `data/bse_stocks_YYYYMMDD_HHMMSS.csv`
-- **Logs:** `logs/stock_fetcher.log`
-
-## 📈 Sample Output
-
-```csv
-securityID,scrip_code,last_price,price_change,price_change_percent,category
-RELIANCE,500325,1557.95,-12.95,-0.82,TOP_GAINER
-TCS,532540,4234.50,45.30,1.08,TOP_GAINER
-HDFCBANK,500180,1678.25,-8.50,-0.50,TOP_LOSER
+**Windows:**
+```bat
+start.bat
 ```
 
-## 🔧 Common Commands
+---
 
-```bash
-# Check if it's working
-python bse_fetcher.py
+## 4. Open the app
 
-# Run comprehensive tests
-python test_fetcher.py
+- **Frontend:** http://localhost:5173
+- **API docs:** http://localhost:8000/docs
 
-# View logs
-tail -f logs/stock_fetcher.log
+---
 
-# Check data
-cat data/bse_stocks_master.csv
-```
+## First steps
 
-## ⚙️ Configuration
+1. **Watchlist** — search for any NSE symbol (e.g. `RELIANCE`) and click Add
+2. **Portfolio** → Add Transaction — enter a BUY trade; P&L updates after the next price poll
+3. **Alerts** — set a price-above or price-below threshold; the alert fires immediately if the condition is already met
+4. **Stock Detail** — click any symbol in Watchlist or Portfolio to see the chart, AI analysis, and fundamentals
+5. **Industry** — browse sectors and trigger the AI Sector Pulse
 
-Edit `.env` file:
-```bash
-FETCH_INTERVAL_MINUTES=60    # How often to fetch
-FETCH_TIME=09:30              # Daily fetch time
-MAX_RETRIES=3                 # Retry attempts
-```
+---
 
-## 🎯 What You Get
+## What runs in the background
 
-- **Real-time prices** from BSE
-- **Top gainers** (5 stocks)
-- **Top losers** (5 stocks)
-- **Price changes** (absolute and percentage)
-- **Timestamps** for each fetch
-- **Automatic CSV storage**
+| Job | Schedule | What it does |
+|---|---|---|
+| Price poller | Every 5 min (9:15–15:30 IST Mon–Fri) | Fetches LTP for all watchlist symbols; evaluates alerts |
+| Agent runner | 08:00 IST daily | Runs Gemini analysis for all watchlist symbols |
+| Indicator calculator | 16:00 IST daily | Refreshes RSI, SMA, EMA after market close |
+| Feedback evaluator | 17:00 IST daily | Scores previous AI recommendations against actual price moves |
 
-## 💡 Pro Tips
+All jobs are IST-aware (pytz `Asia/Kolkata`). Nothing runs outside market hours.
 
-1. **Best Interval:** 30-60 minutes (respects rate limits)
-2. **Market Hours:** Data is most relevant during 9:15 AM - 3:30 PM IST
-3. **Weekends:** BSE is closed, data won't update
-4. **Holidays:** Check BSE holiday calendar
+---
 
-## 🐛 Quick Troubleshooting
+## Detailed guides
 
-**Problem:** No data fetched
-```bash
-# Solution 1: Check internet
-ping bseindia.com
-
-# Solution 2: Check logs
-cat logs/stock_fetcher.log
-
-# Solution 3: Test manually
-python bse_fetcher.py
-```
-
-**Problem:** Import errors
-```bash
-# Solution: Reinstall dependencies
-pip install -r requirements.txt
-```
-
-**Problem:** Permission denied
-```bash
-# Solution: Fix permissions
-chmod -R 755 data logs
-```
-
-## 📚 Next Steps
-
-1. ✅ Run `python scheduler.py once` to test
-2. ✅ Check `data/bse_stocks_master.csv` for results
-3. ✅ Set up continuous monitoring with your preferred mode
-4. ✅ Integrate with your analysis tools (Excel, Python, etc.)
-
-## 🔗 Integration Examples
-
-### Load in Python
-```python
-import pandas as pd
-
-# Read latest data
-df = pd.read_csv('data/bse_stocks_master.csv')
-
-# Analyze
-print(f"Average price: ₹{df['last_price'].mean():.2f}")
-print(f"Top gainer: {df.loc[df['price_change_percent'].idxmax(), 'securityID']}")
-```
-
-### Load in Excel
-1. Open Excel
-2. Data → From Text/CSV
-3. Select `data/bse_stocks_master.csv`
-4. Import and analyze
-
-### Use in Scripts
-```bash
-# Get latest data in bash
-cat data/bse_stocks_master.csv | grep "TOP_GAINER"
-
-# Count stocks
-wc -l data/bse_stocks_master.csv
-```
-
-## 🎉 You're All Set!
-
-Your BSE stock fetcher is ready to use. Start with a test run and then set up continuous monitoring based on your needs.
-
-For detailed documentation, see [README.md](README.md)
+| Topic | Guide |
+|---|---|
+| Windows setup | [docs/WINDOWS_SETUP.md](WINDOWS_SETUP.md) |
+| Full setup | [docs/SETUP_GUIDE.md](SETUP_GUIDE.md) |
+| Architecture | [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
+| Alerts | [docs/ALERT_SYSTEM_GUIDE.md](ALERT_SYSTEM_GUIDE.md) |
+| Portfolio & P&L | [docs/PORTFOLIO_USAGE_GUIDE.md](PORTFOLIO_USAGE_GUIDE.md) |
+| Corporate actions | [docs/CORPORATE_ACTIONS_GUIDE.md](CORPORATE_ACTIONS_GUIDE.md) |

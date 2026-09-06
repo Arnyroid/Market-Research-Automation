@@ -20,6 +20,11 @@ export interface SortFilterOptions<T> {
   defaultSortKey?: string;
   /** Initial sort direction */
   defaultSortDir?: SortDir;
+  /**
+   * Keys that are numeric — clicking one of these for the first time sorts
+   * descending (largest first) instead of ascending.
+   */
+  numericKeys?: string[];
 }
 
 export function useSortFilter<T>(
@@ -32,14 +37,15 @@ export function useSortFilter<T>(
   const [sortDir, setSortDir]       = useState<SortDir>(opts.defaultSortDir ?? "asc");
 
   function setSort(key: string) {
-    setSortKey(prev => {
-      if (prev === key) {
-        setSortDir(d => d === "asc" ? "desc" : "asc");
-        return key;
-      }
-      setSortDir("asc");
-      return key;
-    });
+    if (key === sortKey) {
+      // Same column — toggle direction
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      // New column — numeric keys default desc (largest first), text keys default asc
+      const isNumeric = opts.numericKeys?.includes(key) ?? false;
+      setSortKey(key);
+      setSortDir(isNumeric ? "desc" : "asc");
+    }
   }
 
   function setExtraFilter(key: string, value: string) {

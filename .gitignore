@@ -47,3 +47,4 @@ logs/
 Thumbs.db
 FUTURE_ENHANCEMENTS.md
 /frontend/node_modules
+/.bob

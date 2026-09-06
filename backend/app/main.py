@@ -20,6 +20,7 @@ from backend.app.routers import (
     alerts,
     analysis,
     corporate_actions,
+    market,
     prices,
     risk_profile,
     trades,
@@ -74,6 +75,7 @@ app.include_router(analysis.router,          prefix="/analysis",         tags=["
 app.include_router(risk_profile.router,      prefix="/risk-profile",     tags=["Risk Profile"])
 app.include_router(trades.router,            prefix="/trades",           tags=["Trades"])
 app.include_router(corporate_actions.router, prefix="/corporate-actions",tags=["Corporate Actions"])
+app.include_router(market.router,            prefix="/market",           tags=["Market"])
 
 
 @app.get("/", include_in_schema=False)

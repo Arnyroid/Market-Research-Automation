@@ -3,7 +3,10 @@ Trades router — manual trade entry, file upload import, and portfolio view.
 """
 from __future__ import annotations
 
+import csv
+import io as _io
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -54,6 +57,8 @@ class PortfolioOut(BaseModel):
     current_value: float | None
     unrealized_pnl: float | None
     unrealized_pnl_pct: float | None
+    # "large" | "mid" | "small" | null — derived from screener.in market cap (24h cached)
+    cap_tier: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -155,6 +160,35 @@ async def import_trades(file: UploadFile = File(...), db: Session = Depends(get_
     return {"imported": imported, "skipped": len(df) - imported}
 
 
+@router.get("/export")
+def export_trades_csv(symbol: str | None = None, db: Session = Depends(get_db)):
+    """Stream all trades (or a single symbol's trades) as a CSV download."""
+    q = db.query(Trade)
+    if symbol:
+        q = q.filter(Trade.symbol == symbol)
+    trades = q.order_by(Trade.trade_date.desc()).all()
+
+    output = _io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "trade_date", "symbol", "exchange", "company_name",
+                     "trade_type", "quantity", "price", "brokerage", "realized_pnl", "notes"])
+    for t in trades:
+        writer.writerow([
+            t.id, t.trade_date, t.symbol, t.exchange, t.company_name or "",
+            t.trade_type, t.quantity, t.price, t.brokerage,
+            t.realized_pnl if t.realized_pnl is not None else "",
+            t.notes or "",
+        ])
+    output.seek(0)
+
+    filename = f"trades_{symbol.upper() if symbol else 'all'}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.delete("/{trade_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_trade(trade_id: int, db: Session = Depends(get_db)):
     trade = db.get(Trade, trade_id)
@@ -170,7 +204,19 @@ def delete_trade(trade_id: int, db: Session = Depends(get_db)):
 
 @router.get("/portfolio", response_model=list[PortfolioOut])
 def get_portfolio(db: Session = Depends(get_db)):
-    return db.query(Portfolio).filter(Portfolio.total_quantity > 0).all()
+    rows = db.query(Portfolio).filter(Portfolio.total_quantity > 0).all()
+    # Annotate each row with a cap tier from the in-process fundamentals cache
+    # (no network calls — only hits if fundamentals were already fetched)
+    from backend.app.services.data_fetch import _fundamentals_cache
+    result: list[PortfolioOut] = []
+    for row in rows:
+        out = PortfolioOut.model_validate(row)
+        cached_fund = _fundamentals_cache.get(f"{row.symbol.upper()}:{row.exchange.upper()}")
+        if cached_fund and not cached_fund.error and cached_fund.market_cap is not None:
+            mc = cached_fund.market_cap
+            out.cap_tier = "large" if mc >= 20_000 else "mid" if mc >= 5_000 else "small"
+        result.append(out)
+    return result
 
 
 class PortfolioAnalysisOut(BaseModel):
@@ -408,6 +454,9 @@ def _recalculate_portfolio(symbol: str, exchange: str, db: Session) -> None:
             t.realized_pnl = realized
             invested -= sell_qty * avg
             qty -= sell_qty
+
+    # Flush realized_pnl updates to the session before any deletes or early returns
+    db.flush()
 
     row = db.query(Portfolio).filter(
         Portfolio.symbol == symbol, Portfolio.exchange == exchange

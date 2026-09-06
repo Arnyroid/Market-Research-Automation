@@ -25,6 +25,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -89,9 +90,10 @@ class Trade(Base):
 
 class Portfolio(Base):
     __tablename__ = "portfolio"
+    __table_args__ = (UniqueConstraint("symbol", "exchange", name="uq_portfolio_symbol_exchange"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     exchange: Mapped[str] = mapped_column(String(5), nullable=False, default="BSE")
     company_name: Mapped[str] = mapped_column(String(200), nullable=True)
     total_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -172,6 +174,8 @@ class AgentAnalysis(Base):
     generated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     # Structured snapshot: {"rsi": 58.3, "sma_20": 2340.5, "ema_50": 2280.1, ...}
     indicators_snapshot: Mapped[dict] = mapped_column(JSON, nullable=True)
+    # Fundamental data snapshot from screener.in (P/E, ROE, ROCE, shareholding, peers…)
+    fundamentals_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Optional: [{"headline": "...", "source": "...", "published": "..."}]
     news_context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Full LLM text response
