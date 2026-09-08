@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   PieChart as RPieChart, Pie, Cell, Tooltip as RTooltip, ResponsiveContainer, Legend,
@@ -1003,16 +1003,16 @@ export default function PortfolioPage() {
     apiFetch<PortfolioRow[]>("/trades/portfolio").then(rows => {
       setRows(rows);
 
-      // Fetch fundamentals for all holdings in the background — but stagger
-      // requests at 800 ms intervals so screener.in doesn't 429 us on a burst
-      // of 10+ simultaneous requests.  The backend 24h cache means only the
-      // first load per symbol hits screener; subsequent loads are instant.
+      // Fetch fundamentals only for holdings that are missing cap_tier — stagger
+      // at 800 ms intervals so screener.in doesn't 429 us.  Symbols that already
+      // have cap_tier persisted skip the network call entirely; backend 24h cache
+      // makes subsequent hits for the same symbol instant anyway.
       const needsFund = rows.filter(r => r.cap_tier == null);
 
       async function fetchFundStaggered() {
         const map: Record<string, { industry: string | null; sector: string | null }> = {};
-        for (let i = 0; i < rows.length; i++) {
-          const r = rows[i];
+        for (let i = 0; i < needsFund.length; i++) {
+          const r = needsFund[i];
           if (i > 0) await new Promise(res => setTimeout(res, 800));
           try {
             const f = await apiFetch<{ industry: string | null; sector: string | null; error: string | null }>(
@@ -1058,39 +1058,42 @@ export default function PortfolioPage() {
     }
   }
 
-  const totalInvested   = rows.reduce((s, r) => s + r.total_invested, 0);
-  const totalValue      = rows.reduce((s, r) => s + (r.current_value ?? r.total_invested), 0);
-  const totalPnl        = totalValue - totalInvested;
-  const totalPct        = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
-  const gainers         = rows.filter(r => (r.unrealized_pnl ?? 0) > 0).length;
-  const losers          = rows.filter(r => (r.unrealized_pnl ?? 0) < 0).length;
-  // Realized P&L — sum all SELL trades that have a realized_pnl set
-  const totalRealizedPnl = trades
-    .filter(t => t.trade_type === "SELL" && t.realized_pnl != null)
-    .reduce((s, t) => s + (t.realized_pnl ?? 0), 0);
-  const hasRealized = trades.some(t => t.trade_type === "SELL" && t.realized_pnl != null);
+  const {
+    totalInvested, totalValue, totalPnl, totalPct,
+    gainers, losers, totalRealizedPnl, hasRealized,
+    summaryCards,
+  } = useMemo(() => {
+    const totalInvested    = rows.reduce((s, r) => s + r.total_invested, 0);
+    const totalValue       = rows.reduce((s, r) => s + (r.current_value ?? r.total_invested), 0);
+    const totalPnl         = totalValue - totalInvested;
+    const totalPct         = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
+    const gainers          = rows.filter(r => (r.unrealized_pnl ?? 0) > 0).length;
+    const losers           = rows.filter(r => (r.unrealized_pnl ?? 0) < 0).length;
+    const totalRealizedPnl = trades
+      .filter(t => t.trade_type === "SELL" && t.realized_pnl != null)
+      .reduce((s, t) => s + (t.realized_pnl ?? 0), 0);
+    const hasRealized = trades.some(t => t.trade_type === "SELL" && t.realized_pnl != null);
 
-  // #1 — P&L card tint class
-  const pnlCardBg = totalPnl > 0
-    ? "bg-emerald-900/20 border-emerald-800/40"
-    : totalPnl < 0
-    ? "bg-red-900/20 border-red-800/40"
-    : "";
-  const realizedCardBg = !hasRealized ? "" : totalRealizedPnl > 0
-    ? "bg-emerald-900/20 border-emerald-800/40"
-    : totalRealizedPnl < 0
-    ? "bg-red-900/20 border-red-800/40"
-    : "";
+    // #1 — P&L card tint class
+    const pnlCardBg = totalPnl > 0
+      ? "bg-emerald-900/20 border-emerald-800/40"
+      : totalPnl < 0 ? "bg-red-900/20 border-red-800/40" : "";
+    const realizedCardBg = !hasRealized ? "" : totalRealizedPnl > 0
+      ? "bg-emerald-900/20 border-emerald-800/40"
+      : totalRealizedPnl < 0 ? "bg-red-900/20 border-red-800/40" : "";
 
-  const summaryCards = [
-    { label: "Invested",         value: `₹${totalInvested.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,                                      sub: `${rows.length} holdings`,                            color: "text-white",                                tint: "" },
-    { label: "Current Value",    value: `₹${totalValue.toLocaleString("en-IN",    { minimumFractionDigits: 2 })}`,                                      sub: "Mark to market",                                     color: "text-white",                                tint: "" },
-    { label: "Unrealized P&L",   value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,     sub: `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(2)}%`, color: totalPnl >= 0 ? "gain" : "loss",             tint: pnlCardBg },
-    { label: "Realized P&L",     value: hasRealized
-        ? `${totalRealizedPnl >= 0 ? "+" : ""}₹${Math.abs(totalRealizedPnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-        : "—",                                                                                                                                           sub: hasRealized ? "from closed positions" : "No sells yet", color: hasRealized ? (totalRealizedPnl >= 0 ? "gain" : "loss") : "text-gray-600", tint: realizedCardBg },
-    { label: "Gainers / Losers", value: `${gainers} / ${losers}`,                                                                                       sub: `${rows.length - gainers - losers} neutral`,           color: "text-white",                                tint: "" },
-  ];
+    const summaryCards = [
+      { label: "Invested",         value: `₹${totalInvested.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,                                      sub: `${rows.length} holdings`,                            color: "text-white",                                                              tint: "" },
+      { label: "Current Value",    value: `₹${totalValue.toLocaleString("en-IN",    { minimumFractionDigits: 2 })}`,                                      sub: "Mark to market",                                     color: "text-white",                                                              tint: "" },
+      { label: "Unrealized P&L",   value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,     sub: `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(2)}%`, color: totalPnl >= 0 ? "gain" : "loss",                                          tint: pnlCardBg },
+      { label: "Realized P&L",     value: hasRealized
+          ? `${totalRealizedPnl >= 0 ? "+" : ""}₹${Math.abs(totalRealizedPnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+          : "—",                                                                                                                                           sub: hasRealized ? "from closed positions" : "No sells yet", color: hasRealized ? (totalRealizedPnl >= 0 ? "gain" : "loss") : "text-gray-600", tint: realizedCardBg },
+      { label: "Gainers / Losers", value: `${gainers} / ${losers}`,                                                                                       sub: `${rows.length - gainers - losers} neutral`,           color: "text-white",                                                              tint: "" },
+    ];
+
+    return { totalInvested, totalValue, totalPnl, totalPct, gainers, losers, totalRealizedPnl, hasRealized, summaryCards };
+  }, [rows, trades]);
 
   // ── Cap-tier tab ──────────────────────────────────────────────────────────
   const [capTier, setCapTier] = useState<CapTierFilter>("all");
@@ -1168,7 +1171,7 @@ export default function PortfolioPage() {
     : tradesSort.filtered;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
 
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
@@ -1255,7 +1258,10 @@ export default function PortfolioPage() {
       {rows.length > 0 && (
         <div className="flex items-center gap-0 mb-4 border-b border-gray-800">
           {CAP_TIER_TABS.filter(t => t.key === "all" || capCounts[t.key] > 0).map(t => {
-            const isLoading = t.key !== "all" && Object.keys(fundMap).length === 0 && rows.length > 0;
+            // Show skeleton only while we're actually waiting for cap_tier data —
+            // i.e. some rows are still missing it AND fundMap hasn't arrived yet.
+            const missingCapTier = rows.some(r => r.cap_tier == null);
+            const isLoading = t.key !== "all" && missingCapTier && Object.keys(fundMap).length === 0;
             return (
               <button
                 key={t.key}

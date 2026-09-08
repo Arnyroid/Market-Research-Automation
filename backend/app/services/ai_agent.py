@@ -248,9 +248,12 @@ def _run_analysis_inner(symbol: str, exchange: str, db: Session) -> Optional[Age
             err_str = str(exc)
             if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
                 logger.warning(f"Gemini {attempt_model} overloaded for {symbol}, trying fallback")
+            elif "404" in err_str or "NOT_FOUND" in err_str or "no longer available" in err_str.lower():
+                # Model deprecated / renamed — fall through to next model in list
+                logger.warning(f"Gemini {attempt_model} not found for {symbol} (deprecated?), trying fallback")
             else:
                 logger.error(f"Gemini API call failed for {symbol} ({attempt_model}): {exc}")
-                return None   # non-recoverable (bad key, 404, etc.)
+                return None   # non-recoverable (bad key, invalid request, etc.)
 
     if not structured:
         logger.error(f"All Gemini models unavailable for {symbol}")
@@ -613,7 +616,9 @@ def run_sector_analysis(
                 model=attempt_model,
                 config=genai_types.GenerateContentConfig(
                     system_instruction=_SECTOR_SYSTEM_PROMPT,
-                    max_output_tokens=2048,
+                    # 2048 was too small for 12 sectors + 10 industry entries —
+                    # caused frequent JSON truncation mid-string.
+                    max_output_tokens=8192,
                     temperature=0.3,
                     response_mime_type="application/json",
                     response_schema=_sector_schema,
@@ -621,16 +626,30 @@ def run_sector_analysis(
             )
             response = chat.send_message(user_msg)
             raw_text = (response.text or "").strip()
-            if raw_text:
-                import json as _json
+            if not raw_text:
+                logger.warning(f"Gemini returned empty sector analysis from {attempt_model}, trying fallback")
+                continue
+
+            import json as _json
+            try:
                 result = _json.loads(raw_text)
-                logger.info(f"Gemini sector analysis OK using {attempt_model}")
-                break
-            logger.warning(f"Gemini returned empty sector analysis from {attempt_model}, trying fallback")
+            except _json.JSONDecodeError as json_exc:
+                # Truncated response despite higher token limit — try fallback model
+                logger.warning(
+                    f"Gemini {attempt_model} returned truncated sector JSON ({json_exc}), trying fallback"
+                )
+                continue
+
+            logger.info(f"Gemini sector analysis OK using {attempt_model}")
+            break
+
         except Exception as exc:
             err_str = str(exc)
             if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
                 logger.warning(f"Gemini {attempt_model} overloaded for sector analysis, trying fallback")
+            elif "404" in err_str or "NOT_FOUND" in err_str or "no longer available" in err_str.lower():
+                # Model deprecated / renamed — fall through to next model in list
+                logger.warning(f"Gemini {attempt_model} not found for sector analysis (deprecated?), trying fallback")
             else:
                 logger.error(f"Gemini sector analysis failed ({attempt_model}): {exc}")
                 return None

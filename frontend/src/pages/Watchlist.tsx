@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus, Trash2, TrendingUp, TrendingDown, Search,
@@ -180,14 +180,16 @@ export default function WatchlistPage() {
   }
 
   // ── Merge items with live/rest prices ──────────────────────────────────────
-  const enrichedRows: WatchlistRow[] = items.map(item => {
+  // Memoised so the full array isn't rebuilt on every WebSocket tick — only
+  // reruns when items, livePrices, or restPrices actually change.
+  const enrichedRows: WatchlistRow[] = useMemo(() => items.map(item => {
     const key      = `${item.symbol}:${item.exchange}`;
     const liveWs   = livePrices.get(key) ?? null;
     const liveRest = restPrices.get(key) ?? null;
     const live     = liveWs ?? liveRest ?? null;
     const pct      = live?.pct_change ?? null;
     const abs      = live != null && pct != null
-      ? parseFloat((live.ltp - live.ltp / (1 + pct / 100)).toFixed(2))
+      ? +(live.ltp - live.ltp / (1 + pct / 100)).toFixed(2)
       : null;
     return {
       ...item,
@@ -200,7 +202,7 @@ export default function WatchlistPage() {
       low:         liveRest?.low    ?? null,
       volume:      liveRest?.volume ?? null,
     };
-  });
+  }), [items, livePrices, restPrices]);
 
   // ── Sort + filter ────────────────────────────────────────────────────────────
   const [tableFilter, setTableFilter] = useState("");
@@ -234,7 +236,7 @@ export default function WatchlistPage() {
   const flat     = enrichedRows.filter(r => r.pct_change != null && r.pct_change === 0).length;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between mb-6">

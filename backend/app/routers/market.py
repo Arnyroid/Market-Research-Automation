@@ -26,6 +26,7 @@ from backend.app.services.data_fetch import (
     fetch_industry_overview,
     fetch_industry_stocks,
     fetch_sector_index,
+    fetch_penny_stocks,
 )
 from backend.app.services.ai_agent import run_sector_analysis
 
@@ -123,6 +124,59 @@ def _sector_to_dict(s: SectorInfo) -> dict[str, Any]:
         "total_stocks": s.total_stocks_display,
         "children":     [_node_to_dict(c) for c in sorted_children],
         "flat_industries": [_node_to_dict(n) for n in s.flat_industries],
+    }
+
+
+# ── Penny stocks screen ────────────────────────────────────────────────────────
+
+@router.get("/penny-stocks")
+def get_penny_stocks(
+    max_price:         float = Query(50.0,  gt=0,   le=500,  description="Max CMP in ₹"),
+    min_market_cap_cr: float = Query(10.0,  gt=0,             description="Min market cap ₹ Cr"),
+    max_market_cap_cr: float = Query(500.0, gt=0,             description="Max market cap ₹ Cr"),
+    force:             bool  = Query(False,                    description="Bypass 1h cache"),
+) -> dict[str, Any]:
+    """
+    Return penny stocks filtered by price and market cap using an authenticated
+    screener.in screen query.
+
+    Requires SCREENER_EMAIL and SCREENER_PASSWORD in .env.
+    Results are cached 1 hour in-process.
+
+    Response shape:
+      {
+        "stocks": [ {rank, name, symbol, cmp, market_cap, pe_ratio, roce,
+                      div_yield, net_profit_qtr, qtr_sales_var,
+                      high_52w, low_52w, pct_from_52w_high}, ... ],
+        "count":  N,
+        "cached": bool,
+        "filters": {max_price, min_market_cap_cr, max_market_cap_cr}
+      }
+    """
+    result = fetch_penny_stocks(
+        max_price=max_price,
+        min_market_cap_cr=min_market_cap_cr,
+        max_market_cap_cr=max_market_cap_cr,
+        force=force,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Penny stocks unavailable — set SCREENER_EMAIL and SCREENER_PASSWORD "
+                "in .env and restart the server."
+            ),
+        )
+
+    return {
+        "stocks":  [dataclasses.asdict(s) for s in result],
+        "count":   len(result),
+        "filters": {
+            "max_price":         max_price,
+            "min_market_cap_cr": min_market_cap_cr,
+            "max_market_cap_cr": max_market_cap_cr,
+        },
     }
 
 

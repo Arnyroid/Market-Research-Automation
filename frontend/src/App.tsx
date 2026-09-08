@@ -1,55 +1,86 @@
-import { useState } from "react";
-import { NavLink, Route, Routes } from "react-router-dom";
-import { LayoutDashboard, Bell, TrendingUp, ShieldCheck, Briefcase, BarChart2, Menu, X } from "lucide-react";
+import { memo, useEffect, useState } from "react";
+import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { LayoutDashboard, Bell, TrendingUp, ShieldCheck, Briefcase, BarChart2, Menu, X, Coins, Home } from "lucide-react";
+import HomePage        from "./pages/Home";
 import WatchlistPage   from "./pages/Watchlist";
 import PortfolioPage   from "./pages/Portfolio";
 import AlertsPage      from "./pages/Alerts";
 import StockDetailPage from "./pages/StockDetail";
 import RiskProfilePage from "./pages/RiskProfile";
 import IndustryPage    from "./pages/Industry";
+import PennyStocksPage from "./pages/PennyStocks";
 
 const NAV = [
-  { to: "/",          label: "Watchlist",     icon: LayoutDashboard },
+  { to: "/home",      label: "Home",          icon: Home },
+  { to: "/watchlist", label: "Watchlist",     icon: LayoutDashboard },
   { to: "/portfolio", label: "Portfolio",     icon: Briefcase },
   { to: "/industry",  label: "Industries",    icon: BarChart2 },
+  { to: "/penny",     label: "Penny Stocks",  icon: Coins },
   { to: "/alerts",    label: "Alerts",        icon: Bell },
   { to: "/risk",      label: "Risk Profile",  icon: ShieldCheck },
 ];
 
 // ── Market open/closed dot ─────────────────────────────────────────────────────
 
-function MarketStatusDot() {
+/** Derive IST market-open state and the ms until it next flips. */
+function _getMarketState(): { open: boolean; msUntilFlip: number } {
   const now = new Date();
-  // Current time in IST (Asia/Kolkata = UTC+5:30)
-  const istParts = new Intl.DateTimeFormat("en-IN", {
+  const fmt = new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: false,
-    weekday: "short",
-  }).formatToParts(now);
-
-  const get = (type: string) => istParts.find(p => p.type === type)?.value ?? "";
-  const weekday = get("weekday"); // "Mon", "Tue", …
-  const h = parseInt(get("hour"), 10);
-  const m = parseInt(get("minute"), 10);
+    hour: "numeric", minute: "numeric", hour12: false, weekday: "short",
+  });
+  const parts  = fmt.formatToParts(now);
+  const get    = (t: string) => parts.find(p => p.type === t)?.value ?? "";
+  const weekday = get("weekday");
+  const h      = parseInt(get("hour"),   10);
+  const m      = parseInt(get("minute"), 10);
   const minutes = h * 60 + m;
 
-  // NSE/BSE: Mon–Fri 9:15–15:30 IST; closed on weekends
   const isWeekday = weekday !== "Sun" && weekday !== "Sat";
-  const open = isWeekday && minutes >= 9 * 60 + 15 && minutes < 15 * 60 + 30;
+  const OPEN_MIN  = 9 * 60 + 15;   // 09:15
+  const CLOSE_MIN = 15 * 60 + 30;  // 15:30
+  const open = isWeekday && minutes >= OPEN_MIN && minutes < CLOSE_MIN;
+
+  // ms until the state flips next (open→close or close→open on next weekday)
+  let minsUntilFlip: number;
+  if (open) {
+    minsUntilFlip = CLOSE_MIN - minutes;
+  } else if (isWeekday && minutes < OPEN_MIN) {
+    minsUntilFlip = OPEN_MIN - minutes;
+  } else {
+    // After close or weekend — next open is Monday (or next day) at 09:15
+    const daysUntilMon = weekday === "Sat" ? 2 : weekday === "Sun" ? 1 : 1;
+    minsUntilFlip = daysUntilMon * 24 * 60 - minutes + OPEN_MIN;
+  }
+
+  // Add 1 min buffer so the flip fires after the boundary, not right on it
+  return { open, msUntilFlip: (minsUntilFlip + 1) * 60 * 1000 };
+}
+
+// memo: re-renders only when the parent forces it — never on drawerOpen toggles
+const MarketStatusDot = memo(function MarketStatusDot() {
+  const [open, setOpen] = useState(() => _getMarketState().open);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    function schedule() {
+      const { open: isOpen, msUntilFlip } = _getMarketState();
+      setOpen(isOpen);
+      timer = setTimeout(() => { schedule(); }, msUntilFlip);
+    }
+
+    schedule();
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="flex items-center gap-1.5">
-      <span
-        className={`w-1.5 h-1.5 rounded-full ${open ? "bg-emerald-400" : "bg-gray-500"}`}
-      />
-      <span className="text-xs text-gray-600">
-        Market {open ? "Open" : "Closed"}
-      </span>
+      <span className={`w-1.5 h-1.5 rounded-full ${open ? "bg-emerald-400" : "bg-gray-500"}`} />
+      <span className="text-xs text-gray-600">Market {open ? "Open" : "Closed"}</span>
     </div>
   );
-}
+});
 
 // ── 404 page ───────────────────────────────────────────────────────────────────
 
@@ -61,7 +92,7 @@ function NotFoundPage() {
       <p className="text-gray-400 text-sm mb-8">
         The page you're looking for doesn't exist.
       </p>
-      <a href="/" className="btn-primary text-sm">Go to Watchlist</a>
+      <a href="/home" className="btn-primary text-sm">Go to Home</a>
     </div>
   );
 }
@@ -71,12 +102,12 @@ function NotFoundPage() {
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <>
-      {/* Logo */}
+      {/* Logo — click navigates to /home */}
       <div className="px-5 py-5 border-b border-gray-800">
-        <div className="flex items-center gap-2">
+        <Link to="/home" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <TrendingUp size={20} className="text-blue-400" />
           <span className="font-bold text-white text-base tracking-tight">StockAI</span>
-        </div>
+        </Link>
         <p className="text-xs text-gray-500 mt-0.5">Indian Equities Tracker</p>
       </div>
 
@@ -86,7 +117,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
           <NavLink
             key={to}
             to={to}
-            end={to === "/"}
+            end
             onClick={onNavClick}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -160,19 +191,22 @@ export default function App() {
           >
             <Menu size={20} />
           </button>
-          <div className="flex items-center gap-1.5">
+          <Link to="/home" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
             <TrendingUp size={16} className="text-blue-400" />
             <span className="font-bold text-white text-sm tracking-tight">StockAI</span>
-          </div>
+          </Link>
         </div>
 
         <Routes>
-          <Route path="/"              element={<WatchlistPage />} />
+          <Route path="/"              element={<HomePage />} />
+          <Route path="/home"          element={<HomePage />} />
+          <Route path="/watchlist"     element={<WatchlistPage />} />
           <Route path="/portfolio"     element={<PortfolioPage />} />
           <Route path="/alerts"        element={<AlertsPage />} />
           <Route path="/stock/:symbol" element={<StockDetailPage />} />
           <Route path="/risk"          element={<RiskProfilePage />} />
           <Route path="/industry"      element={<IndustryPage />} />
+          <Route path="/penny"         element={<PennyStocksPage />} />
           <Route path="*"              element={<NotFoundPage />} />
         </Routes>
       </main>

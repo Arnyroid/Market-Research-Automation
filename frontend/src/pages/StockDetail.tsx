@@ -143,8 +143,10 @@ function CollapsibleSection({ title, defaultOpen = true, children }: {
 
 function DataTable({ section, maxRows }: { section: TableSection; maxRows?: number }) {
   const rows = maxRows ? section.rows.slice(0, maxRows) : section.rows;
-  // Reverse headers so newest period appears first (left-most data column)
-  const headers = [...section.headers].reverse();
+  // Reverse headers so newest period appears first (left-most data column).
+  // Memoised: section.headers only changes when a fresh fundamentals fetch lands,
+  // not on overlay toggles, tab switches, or any other parent state change.
+  const headers = useMemo(() => [...section.headers].reverse(), [section.headers]);
   return (
     <div className="overflow-x-auto relative">
       {/* Unit label — shown above the table */}
@@ -361,6 +363,7 @@ export default function StockDetailPage() {
   const [showEMA20,  setShowEMA20]  = useState(true);
   const [showDMA50,  setShowDMA50]  = useState(true);
   const [showDMA200, setShowDMA200] = useState(true);
+  const [chartDays,  setChartDays]  = useState<number | null>(7); // default 1W
 
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -478,49 +481,44 @@ export default function StockDetailPage() {
     }
   }
 
-  // ── Chart data with all overlays — memoised so O(n) work only reruns when
-  // history changes, not on every poll tick, tab switch, or UI hover.
-  const chartData = useMemo(() => {
+  // ── Chart data + live indicator snapshot — single memo over history ───────
+  // Previously two separate useMemos both called sma/ema over the full 300-bar
+  // closes array. Merged into one: each series is computed once, chartData reads
+  // per-index values, liveSnap reads the last value of each series.
+  const { chartData, liveSnap } = useMemo(() => {
+    const n      = history.length;
     const closes = history.map(b => b.close);
+
+    // Compute all four MA series once
     const sma20v  = sma(closes, 20);
     const ema20v  = ema(closes, 20);
     const dma50v  = sma(closes, 50);
     const dma200v = sma(closes, 200);
-    return history.map((b, i) => ({
+
+    // ── chartData: one point per bar ─────────────────────────────────────────
+    const chartData = history.map((b, i) => ({
       date:   b.timestamp.slice(0, 10),
       close:  b.close,
-      sma20:  sma20v[i]  !== null ? parseFloat(sma20v[i]!.toFixed(2))  : undefined,
-      ema20:  ema20v[i]  !== null ? parseFloat(ema20v[i]!.toFixed(2))  : undefined,
-      dma50:  dma50v[i]  !== null ? parseFloat(dma50v[i]!.toFixed(2))  : undefined,
-      dma200: dma200v[i] !== null ? parseFloat(dma200v[i]!.toFixed(2)) : undefined,
+      sma20:  sma20v[i]  != null ? +sma20v[i]!.toFixed(2)  : undefined,
+      ema20:  ema20v[i]  != null ? +ema20v[i]!.toFixed(2)  : undefined,
+      dma50:  dma50v[i]  != null ? +dma50v[i]!.toFixed(2)  : undefined,
+      dma200: dma200v[i] != null ? +dma200v[i]!.toFixed(2) : undefined,
     }));
-  }, [history]);
 
-  // ── Live indicator snapshot computed from price history ───────────────────
-  // Computed from history whenever analysis hasn't been run yet (or is stale).
-  // Falls back to stored analysis.indicators_snapshot when history is empty.
-  const liveSnap = useMemo(() => {
-    const n = history.length;
-    if (n === 0) return null;
-    const closes = history.map(b => b.close);
-
-    // Moving averages (reuse last value of the series computed above)
-    const sma20v  = sma(closes, 20);
-    const ema20v  = ema(closes, 20);
-    const dma50v  = sma(closes, 50);
-    const dma200v = sma(closes, 200);
+    // ── liveSnap: derived from last values of each series ────────────────────
+    if (n === 0) return { chartData, liveSnap: null };
 
     const last20  = sma20v[n - 1]  ?? null;
     const lastE20 = ema20v[n - 1]  ?? null;
     const last50  = dma50v[n - 1]  ?? null;
     const last200 = dma200v[n - 1] ?? null;
-    const price   = closes[n - 1] ?? null;
+    const price   = closes[n - 1]  ?? null;
 
-    // RSI-14
+    // RSI-14 (Wilder smoothing)
     let rsi14: number | null = null;
     if (n >= 15) {
       const delta = closes.map((c, i) => i === 0 ? 0 : c - closes[i - 1]);
-      const gains = delta.map(d => Math.max(d, 0));
+      const gains  = delta.map(d => Math.max(d, 0));
       const losses = delta.map(d => Math.max(-d, 0));
       let avgGain = gains.slice(1, 15).reduce((a, b) => a + b, 0) / 14;
       let avgLoss = losses.slice(1, 15).reduce((a, b) => a + b, 0) / 14;
@@ -528,7 +526,7 @@ export default function StockDetailPage() {
         avgGain = (avgGain * 13 + gains[i]) / 14;
         avgLoss = (avgLoss * 13 + losses[i]) / 14;
       }
-      rsi14 = avgLoss === 0 ? 100 : parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+      rsi14 = avgLoss === 0 ? 100 : +((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
     }
 
     // Realized volatility (30d annualised)
@@ -537,28 +535,30 @@ export default function StockDetailPage() {
       const rets = closes.slice(-31).map((c, i, a) => i === 0 ? 0 : (c - a[i - 1]) / a[i - 1]).slice(1);
       const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
       const variance = rets.reduce((a, b) => a + (b - mean) ** 2, 0) / rets.length;
-      vol30 = parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
+      vol30 = +(Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1);
     }
 
     // % changes
-    const pct5d  = n >= 6  ? parseFloat((((closes[n-1] - closes[n-6])  / closes[n-6])  * 100).toFixed(2)) : null;
-    const pct30d = n >= 31 ? parseFloat((((closes[n-1] - closes[n-31]) / closes[n-31]) * 100).toFixed(2)) : null;
-    const pct1d  = n >= 2  ? parseFloat((((closes[n-1] - closes[n-2])  / closes[n-2])  * 100).toFixed(2)) : null;
-    const vsma20 = price && last20 ? parseFloat((((price - last20) / last20) * 100).toFixed(2)) : null;
+    const pct5d  = n >= 6  ? +(((closes[n-1] - closes[n-6])  / closes[n-6])  * 100).toFixed(2) : null;
+    const pct30d = n >= 31 ? +(((closes[n-1] - closes[n-31]) / closes[n-31]) * 100).toFixed(2) : null;
+    const pct1d  = n >= 2  ? +(((closes[n-1] - closes[n-2])  / closes[n-2])  * 100).toFixed(2) : null;
+    const vsma20 = price && last20 ? +(((price - last20) / last20) * 100).toFixed(2) : null;
 
-    return {
-      current_price:          price,
-      pct_change_1d:          pct1d,
-      pct_change_5d:          pct5d,
-      pct_change_30d:         pct30d,
-      sma_20:                 last20  !== null ? parseFloat(last20.toFixed(2))  : null,
-      ema_20:                 lastE20 !== null ? parseFloat(lastE20.toFixed(2)) : null,
-      sma_50:                 last50  !== null ? parseFloat(last50.toFixed(2))  : null,
-      sma_200:                last200 !== null ? parseFloat(last200.toFixed(2)) : null,
-      rsi_14:                 rsi14,
+    const liveSnap = {
+      current_price:           price,
+      pct_change_1d:           pct1d,
+      pct_change_5d:           pct5d,
+      pct_change_30d:          pct30d,
+      sma_20:                  last20  != null ? +last20.toFixed(2)  : null,
+      ema_20:                  lastE20 != null ? +lastE20.toFixed(2) : null,
+      sma_50:                  last50  != null ? +last50.toFixed(2)  : null,
+      sma_200:                 last200 != null ? +last200.toFixed(2) : null,
+      rsi_14:                  rsi14,
       realized_volatility_30d: vol30,
-      price_vs_sma20_pct:     vsma20,
+      price_vs_sma20_pct:      vsma20,
     };
+
+    return { chartData, liveSnap };
   }, [history]);
 
   // Merge: use liveSnap as the base (always up-to-date from 300-day history),
@@ -585,10 +585,9 @@ export default function StockDetailPage() {
   const hasDMA200    = history.length >= 200;
 
   // ── OPM bar chart data ────────────────────────────────────────────────────
-  const opmChartData = (fund?.opm_trend ?? []).map((v, i) => ({
-    quarter: `Q${i + 1}`,
-    opm: parseFloat(v.toFixed(1)),
-  }));
+  const opmChartData = useMemo(() =>
+    (fund?.opm_trend ?? []).map((v, i) => ({ quarter: `Q${i + 1}`, opm: +v.toFixed(1) })),
+  [fund?.opm_trend]);
 
   // ── Active financial table ────────────────────────────────────────────────
   const tabSections: Record<string, import("../api/fundamentals").TableSection | null | undefined> = {
@@ -601,7 +600,7 @@ export default function StockDetailPage() {
   const activeSection = tabSections[activeTab] ?? null;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
 
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
@@ -672,8 +671,35 @@ export default function StockDetailPage() {
 
       {/* Price chart */}
       <div className="card mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-400">Price History — 300 days</h2>
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-gray-400">
+              Price History —{" "}
+              {chartDays === 7 ? "1 Week" : chartDays === 14 ? "2 Weeks" : chartDays === 30 ? "1 Month" : chartDays === 90 ? "3 Months" : "300 days"}
+            </h2>
+            {/* Range pills */}
+            <div className="flex items-center gap-1">
+              {([
+                { label: "1W", days: 7 },
+                { label: "2W", days: 14 },
+                { label: "1M", days: 30 },
+                { label: "3M", days: 90 },
+                { label: "All", days: null },
+              ] as { label: string; days: number | null }[]).map(({ label, days }) => (
+                <button
+                  key={label}
+                  onClick={() => setChartDays(days)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                    chartDays === days
+                      ? "bg-blue-600/30 border-blue-500/60 text-blue-300"
+                      : "border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           {hasOverlays && (
             <div className="flex items-center gap-2 flex-wrap">
               <OverlayToggle label="SMA-20"  color="#f59e0b" active={showSMA20}  onClick={() => setShowSMA20(v => !v)} />
@@ -686,7 +712,7 @@ export default function StockDetailPage() {
 
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+            <LineChart data={chartDays != null ? chartData.slice(-chartDays) : chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
@@ -869,7 +895,7 @@ export default function StockDetailPage() {
                   highlight={fund.debt_to_equity != null ? (fund.debt_to_equity < 0.5 ? "good" : fund.debt_to_equity > 1.5 ? "bad" : "neutral") : undefined}
                 />
                 <FundTile label="Book Value"    value={fund.book_value != null ? `₹${fund.book_value.toLocaleString("en-IN")}` : null} />
-                <FundTile label="EPS (TTM)"     value={fund.eps != null ? `₹${fund.eps.toFixed(2)}` : null} />
+                {fund.eps != null && <FundTile label="EPS (TTM)" value={`₹${fund.eps.toFixed(2)}`} />}
                 <FundTile label="Dividend Yield" value={fund.div_yield != null ? `${fund.div_yield.toFixed(2)}%` : null} />
                 <FundTile label="Market Cap"
                   value={fund.market_cap != null ? `₹${fund.market_cap.toLocaleString("en-IN", { maximumFractionDigits: 0 })} Cr` : null}

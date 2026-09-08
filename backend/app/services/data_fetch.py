@@ -1582,6 +1582,58 @@ _L1_NAMES: dict[str, str] = {
     "IN12": "Diversified",
 }
 
+# Fallback L2 names — used when the L1 page fetch doesn't return a name for a
+# sub-group code (e.g. rate-limited response or missing <a> text).
+_L2_NAMES: dict[str, str] = {
+    # IN01 — Commodities
+    "IN0101": "Metals & Mining",
+    "IN0102": "Chemicals",
+    "IN0103": "Agricultural Commodities",
+    # IN02 — Consumer Discretionary
+    "IN0201": "Automobiles & Auto Components",
+    "IN0202": "Consumer Durables",
+    "IN0203": "Retailing",
+    "IN0204": "Textiles & Apparel",
+    "IN0205": "Leisure & Hospitality",
+    # IN03 — Energy
+    "IN0301": "Oil, Gas & Consumable Fuels",
+    "IN0302": "Power Generation",
+    # IN04 — Fast Moving Consumer Goods
+    "IN0401": "Food & Beverages",
+    "IN0402": "Personal & Household Products",
+    # IN05 — Financial Services
+    "IN0501": "Finance",
+    "IN0502": "Capital Markets",
+    "IN0503": "Banks",
+    "IN0504": "Insurance",
+    "IN0505": "Financial Technology (Fintech)",
+    # IN06 — Healthcare
+    "IN0601": "Pharmaceuticals & Biotechnology",
+    "IN0602": "Healthcare Services",
+    "IN0603": "Healthcare Equipment & Supplies",
+    # IN07 — Industrials
+    "IN0701": "Capital Goods",
+    "IN0702": "Infrastructure",
+    "IN0703": "Transportation",
+    "IN0704": "Defence & Aerospace",
+    # IN08 — Information Technology
+    "IN0801": "Software & IT Services",
+    "IN0802": "Technology Hardware",
+    # IN09 — Services
+    "IN0901": "Commercial & Professional Services",
+    "IN0902": "Media & Entertainment",
+    "IN0903": "E-Commerce & Internet",
+    "IN0904": "Logistics",
+    # IN10 — Telecommunication
+    "IN1001": "Telecom Services",
+    "IN1002": "Telecom Infrastructure",
+    # IN11 — Utilities
+    "IN1101": "Power Distribution",
+    "IN1102": "Water & Waste Management",
+    # IN12 — Diversified
+    "IN1201": "Conglomerates",
+}
+
 
 def _scrape_sector_index() -> list[SectorInfo]:
     """
@@ -1776,7 +1828,7 @@ def _scrape_sector_index() -> list[SectorInfo]:
                 l2_nodes.append(l3_nodes[0])
             else:
                 l2_nodes.append(IndustryNode(
-                    name=l2_name or l2_code,
+                    name=l2_name or _L2_NAMES.get(l2_code, l2_code),
                     path=f"/market/{l1_code}/{l2_code}/",
                     depth=2,
                     stock_count=l2_count,
@@ -1881,3 +1933,292 @@ def _scrape_industry_page(path: str) -> IndustryPageResult:
     logger.info(f"Industry page '{title}' ({path}): {len(stocks)} stocks")
     return IndustryPageResult(title=title, path=path, stocks=stocks)
 
+
+
+# ── Screener.in authenticated session + penny-stock screen ───────────────────
+
+import threading as _ss_threading
+
+@dataclass
+class PennyStock:
+    """One row from the penny-stock screener screen."""
+    rank:            int
+    name:            str
+    symbol:          str | None
+    cmp:             float | None   # current market price ₹
+    market_cap:      float | None   # ₹ Cr
+    pe_ratio:        float | None
+    roce:            float | None   # %
+    div_yield:       float | None   # %
+    net_profit_qtr:  float | None   # ₹ Cr
+    qtr_sales_var:   float | None   # % QoQ
+    high_52w:        float | None   # ₹
+    low_52w:         float | None   # ₹
+    pct_from_52w_high: float | None # % below 52-week high (negative = below)
+
+
+_screener_session:     "requests.Session | None" = None
+_screener_session_lock = _ss_threading.Lock()
+_screener_session_user: str = ""   # email used for current session
+
+# 1-hour cache for penny-stock results
+_penny_cache:    "list[PennyStock] | None" = None
+_penny_cache_ts: float = 0.0
+_penny_cache_lock = _ss_threading.Lock()
+_PENNY_CACHE_TTL  = 3600   # 1 hour
+
+
+def _get_screener_session(email: str, password: str) -> "requests.Session | None":
+    """
+    Return an authenticated requests.Session for screener.in.
+    Re-uses the existing session if the credentials match; re-logins on
+    credential change or after 403/session-expiry (caller's responsibility
+    to call this again with force=True).
+    Thread-safe.
+    """
+    global _screener_session, _screener_session_user
+
+    with _screener_session_lock:
+        if _screener_session is not None and _screener_session_user == email:
+            return _screener_session
+
+        sess = requests.Session()
+        sess.headers.update(_SCREENER_HEADERS)
+
+        # Step 1: GET login page to harvest CSRF token
+        try:
+            resp = sess.get(f"{_SCREENER_BASE}/login/", timeout=15)
+            resp.raise_for_status()
+        except Exception as exc:
+            logger.error(f"screener.in login page fetch failed: {exc}")
+            return None
+
+        # CSRF token is in a hidden input or a cookie named csrftoken
+        from bs4 import BeautifulSoup as _BSL
+        soup = _BSL(resp.text, "lxml")
+        csrf_input = soup.find("input", {"name": "csrfmiddlewaretoken"})
+        csrf = csrf_input["value"] if csrf_input else sess.cookies.get("csrftoken", "")
+
+        # Step 2: POST credentials
+        try:
+            login_resp = sess.post(
+                f"{_SCREENER_BASE}/login/",
+                data={
+                    "username":            email,
+                    "password":            password,
+                    "csrfmiddlewaretoken": csrf,
+                    "next":                "/",
+                },
+                headers={"Referer": f"{_SCREENER_BASE}/login/"},
+                timeout=15,
+                allow_redirects=True,
+            )
+            login_resp.raise_for_status()
+        except Exception as exc:
+            logger.error(f"screener.in login POST failed: {exc}")
+            return None
+
+        # Verify login: authenticated pages set a "sessionid" cookie
+        if "sessionid" not in sess.cookies:
+            logger.error("screener.in login failed — no sessionid cookie (wrong credentials?)")
+            return None
+
+        _screener_session      = sess
+        _screener_session_user = email
+        logger.info("screener.in login successful")
+        return sess
+
+
+def fetch_penny_stocks(
+    max_price: float = 50.0,
+    min_volume_cr: float = 1.0,
+    min_market_cap_cr: float = 10.0,
+    max_market_cap_cr: float = 500.0,
+    force: bool = False,
+) -> "list[PennyStock] | None":
+    """
+    Fetch penny stocks from screener.in using the authenticated /screen/raw/ API.
+
+    Requires SCREENER_EMAIL and SCREENER_PASSWORD in settings.
+    Returns None when credentials are not configured or login fails.
+    Returns [] when the screen runs but finds no results.
+    Results are cached 1 hour in-process.
+
+    Screen criteria (all configurable via params):
+      Current Price < max_price
+      Market Capitalization > min_market_cap_cr
+      Market Capitalization < max_market_cap_cr
+    """
+    global _penny_cache, _penny_cache_ts
+    from backend.app.core.config import get_settings
+    cfg = get_settings()
+
+    email    = getattr(cfg, "screener_email",    "")
+    password = getattr(cfg, "screener_password", "")
+    if not email or not password:
+        logger.warning("SCREENER_EMAIL / SCREENER_PASSWORD not set — penny stocks unavailable")
+        return None
+
+    # Serve from cache
+    if not force:
+        with _penny_cache_lock:
+            if _penny_cache is not None and (time.time() - _penny_cache_ts) < _PENNY_CACHE_TTL:
+                return list(_penny_cache)
+
+    sess = _get_screener_session(email, password)
+    if sess is None:
+        return None
+
+    try:
+        from bs4 import BeautifulSoup as _BSP
+    except ImportError:
+        logger.warning("beautifulsoup4 not installed")
+        return None
+
+    # screener.in screen query syntax: field op value AND ...
+    query = (
+        f"Current Price < {max_price} AND "
+        f"Market Capitalization > {min_market_cap_cr} AND "
+        f"Market Capitalization < {max_market_cap_cr}"
+    )
+
+    try:
+        # GET /screen/raw/?query=...  — returns a full HTML page with one <table>
+        # Session expired → screener redirects to /login/
+        resp = sess.get(
+            f"{_SCREENER_BASE}/screen/raw/",
+            params={"query": query, "limit": "200"},
+            headers={"Referer": f"{_SCREENER_BASE}/screen/new/"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+
+        if "/login/" in resp.url:
+            logger.warning("screener.in session expired — re-logging in")
+            with _screener_session_lock:
+                global _screener_session
+                _screener_session = None
+            sess = _get_screener_session(email, password)
+            if sess is None:
+                return None
+            resp = sess.get(
+                f"{_SCREENER_BASE}/screen/raw/",
+                params={"query": query, "limit": "200"},
+                headers={"Referer": f"{_SCREENER_BASE}/screen/new/"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+
+    except Exception as exc:
+        logger.error(f"screener.in penny screen fetch failed: {exc}")
+        return None
+
+    # Parse the returned HTML table.
+    # The page has a single <table>; the first <tr> in tbody contains sort-link
+    # <th> elements (not data), so skip any <tr> whose cells are all empty.
+    soup = _BSP(resp.text, "lxml")
+    tbl  = soup.find("table")
+    if not tbl:
+        logger.warning("penny screen: no table in screener.in response")
+        return []
+
+    # Detect column order from the *first* <tr> that has <th> elements.
+    # /screen/raw/ uses <thead>/<tbody> — fall back to scanning all <tr>s.
+    thead = tbl.find("thead")
+    if thead:
+        raw_headers = [th.get_text(strip=True).lower() for th in thead.find_all("th")]
+    else:
+        raw_headers = [th.get_text(strip=True).lower() for th in tbl.find_all("th")]
+    # Deduplicate while preserving first occurrence
+    seen: set[str] = set()
+    headers: list[str] = []
+    for h in raw_headers:
+        if h not in seen:
+            seen.add(h)
+            headers.append(h)
+
+    def _hi(keyword: str) -> int | None:
+        for i, h in enumerate(headers):
+            if keyword in h:
+                return i
+        return None
+
+    # Column indices — screener /screen/raw/ default columns:
+    # S.No. | Company | CMPRs. | P/E | Mar Cap Rs.Cr. | Div Yld% |
+    # NP Qtr Rs.Cr. | Qtr Profit Var% | Sales Qtr Rs.Cr. | Qtr Sales Var% |
+    # ROCE% | Ind PE | Sales Var 3Yrs% | ROE 3Yr% | ROE 5Yr% | Sales Var 5Yrs%
+    idx_no    = 0
+    idx_name  = _hi("company") or _hi("name") or 1
+    idx_cmp   = _hi("cmp") or _hi("price") or 2
+    idx_mc    = _hi("cap") or 4
+    idx_pe    = _hi("p/e") or 3
+    idx_dy    = _hi("div") or 5
+    idx_np    = _hi("np qtr") or _hi("net profit") or 6
+    idx_sv    = _hi("qtr sales var") or _hi("sales var") or 9
+    idx_roce  = _hi("roce") or 10
+    idx_52h: int | None = _hi("52w high") or _hi("52 week high")
+    idx_52l: int | None = _hi("52w low")  or _hi("52 week low")
+
+    # tbody rows — skip header-repeat rows (cells all empty or no <td>)
+    tbody = tbl.find("tbody")
+    all_trs = tbody.find_all("tr") if tbody else tbl.find_all("tr")[1:]
+
+    results: list[PennyStock] = []
+    rank = 0
+    for tr in all_trs:
+        cells = tr.find_all("td")
+        if not cells:
+            continue
+        # Skip sort-link header rows (first cell is a sort anchor, not a number)
+        first_text = cells[0].get_text(strip=True)
+        if not first_text or not first_text.rstrip(".").isdigit():
+            continue
+
+        rank += 1
+
+        def _get(idx: int | None) -> float | None:
+            if idx is None or idx >= len(cells):
+                return None
+            return _parse_screener_number(cells[idx].get_text(strip=True))
+
+        # Extract symbol from /company/<SLUG>/  or  /company/<SLUG>/consolidated/
+        # SLUG may be an ISIN (numeric, e.g. "523222") or a ticker string ("NOIDATOLL")
+        sym: str | None = None
+        link = tr.find("a", href=_re.compile(r"^/company/"))
+        if link:
+            parts = [p for p in link["href"].strip("/").split("/") if p]
+            # parts = ["company", slug, ...]  → slug is parts[1]
+            if len(parts) >= 2:
+                slug = parts[1].upper()
+                # If it looks like a pure ISIN number, skip — use company name as fallback
+                sym = slug if not slug.isdigit() else None
+
+        cmp = _get(idx_cmp)
+        h52 = _get(idx_52h)
+        pct_from_high = round((cmp - h52) / h52 * 100, 1) if cmp and h52 and h52 > 0 else None
+
+        name_text = cells[idx_name].get_text(strip=True) if idx_name is not None and idx_name < len(cells) else ""
+
+        results.append(PennyStock(
+            rank=rank,
+            name=name_text,
+            symbol=sym,
+            cmp=cmp,
+            market_cap=_get(idx_mc),
+            pe_ratio=_get(idx_pe),
+            roce=_get(idx_roce),
+            div_yield=_get(idx_dy),
+            net_profit_qtr=_get(idx_np),
+            qtr_sales_var=_get(idx_sv),
+            high_52w=h52,
+            low_52w=_get(idx_52l),
+            pct_from_52w_high=pct_from_high,
+        ))
+
+    logger.info(f"penny screen: {len(results)} stocks (price < ₹{max_price})")
+
+    with _penny_cache_lock:
+        _penny_cache    = results
+        _penny_cache_ts = time.time()
+
+    return results

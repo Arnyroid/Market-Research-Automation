@@ -86,8 +86,39 @@ export const marketApi = {
   getOverview: (force = false) =>
     apiFetch<IndustryOverviewRow[]>(`/market/overview${force ? "?force=true" : ""}`),
 
-  getSectorAnalysis: (force = false) =>
-    apiFetch<SectorAnalysis>(`/market/sector-analysis${force ? "?force=true" : ""}`),
+  /**
+   * Fetch sector analysis with retry + per-attempt timeout.
+   *
+   * The backend call is slow on first load (screener scrape + Gemini).
+   * Each attempt gets 90 s before aborting; on 503 / network error we
+   * wait and retry up to `maxAttempts` times with exponential backoff.
+   */
+  getSectorAnalysis: async (force = false, maxAttempts = 3): Promise<SectorAnalysis> => {
+    const url = `/market/sector-analysis${force ? "?force=true" : ""}`;
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Back off: 0 s, 8 s, 16 s between attempts
+      if (attempt > 0) await new Promise(res => setTimeout(res, attempt * 8_000));
+
+      // 90-second per-attempt timeout — enough for a cold Gemini call
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 90_000);
+      try {
+        const result = await apiFetch<SectorAnalysis>(url, {}, ac.signal);
+        clearTimeout(timer);
+        return result;
+      } catch (err: unknown) {
+        clearTimeout(timer);
+        lastErr = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        // Only retry on 503 (overloaded/unavailable) or network/timeout errors
+        const isRetryable = msg.includes("503") || msg.includes("AbortError")
+          || msg.includes("Failed to fetch") || msg.includes("aborted");
+        if (!isRetryable) throw err;   // 4xx or other hard error — don't retry
+      }
+    }
+    throw lastErr;
+  },
 
   getSectorStocks: (path: string, force = false) => {
     // path is e.g. "IN08" or "IN08/IN0801" — strip leading /market/ if present

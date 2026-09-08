@@ -64,7 +64,7 @@ export default function RiskProfilePage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Risk Profile</h1>
         <p className="text-gray-400 text-sm mt-1">

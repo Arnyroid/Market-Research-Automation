@@ -145,16 +145,152 @@ function SignalBadge({ signal }: { signal: "BUY" | "HOLD" | "AVOID" }) {
   );
 }
 
+/**
+ * Known abbreviations / short-forms that Gemini uses which don't substring-match
+ * the full screener.in name. Maps lowercased Gemini term → screener canonical term.
+ */
+const SECTOR_ALIASES: Record<string, string> = {
+  "fmcg":                      "fast moving consumer goods",
+  "it":                        "information technology",
+  "bfsi":                      "finance",
+  "financial services":        "finance",
+  "consumer discretionary":    "consumer discretionary",
+  "consumer staples":          "fast moving consumer goods",
+  "real estate":               "realty",
+  "oil & gas":                 "energy",
+  "oil and gas":               "energy",
+  "pharma":                    "healthcare",
+  "pharmaceuticals":           "healthcare",
+  "auto":                      "automobile",
+  "automobiles":               "automobile",
+  "metals":                    "commodities",
+  "metals & mining":           "commodities",
+  "capital goods":             "industrials",
+  "infra":                     "infrastructure",
+  "infrastructure":            "infrastructure",
+  "telecom":                   "telecommunication",
+  "media & entertainment":     "services",
+  "media":                     "services",
+};
+
+const INDUSTRY_ALIASES: Record<string, string> = {
+  "private banks":             "private sector banks",
+  "private bank":              "private sector banks",
+  "psu banks":                 "public sector banks",
+  "public banks":              "public sector banks",
+  "nbfc":                      "non banking financial companies",
+  "nbfcs":                     "non banking financial companies",
+  "insurance":                 "general insurance",
+  "it services":               "computers - software & consulting",
+  "software":                  "computers - software & consulting",
+  "fmcg":                      "fast moving consumer goods",
+  "packaged foods":            "packaged foods",
+  "edible oil":                "edible oils",
+  "paints":                    "paints & varnishes",
+  "hospitals":                 "hospitals & medical services",
+  "diagnostics":               "healthcare equipment & supplies",
+  "real estate":               "real estate investment trusts",
+  "power distribution":        "power transmission & distribution",
+  "power generation":          "power generation & distribution",
+  "renewables":                "renewable energy equipment",
+  "renewable energy":          "renewable energy equipment",
+  "solar":                     "renewable energy equipment",
+  "defence":                   "aerospace & defence",
+  "defense":                   "aerospace & defence",
+  "aviation":                  "airlines",
+  "epc":                       "construction",
+  "roads":                     "infrastructure developers & operators",
+  "railways":                  "railways",
+  "shipping":                  "shipping",
+  "logistics":                 "logistics",
+  "tour/travel":               "travel agencies",
+  "travel":                    "travel agencies",
+  "e-commerce":                "e-commerce",
+  "retail":                    "retail",
+  "jewellery":                 "jewellery",
+  "textiles":                  "textiles",
+  "chemicals":                 "specialty chemicals",
+  "agrochemicals":             "agrochemicals",
+  "fertilisers":               "fertilisers",
+  "cement":                    "cement",
+  "steel":                     "iron & steel",
+  "aluminium":                 "aluminium",
+  "copper":                    "copper",
+  "zinc":                      "zinc",
+  "oil exploration":           "oil exploration",
+  "refineries":                "refineries",
+  "gas distribution":          "gas distribution",
+  "stockbroking":              "stockbroking & allied",
+  "exchanges":                 "stock exchanges & ratings",
+  "commercial services":       "miscellaneous commercial services",
+};
+
+/** Normalise a Gemini-generated name through the alias table, then return lowercase. */
+function _normalise(name: string): string {
+  const lower = name.toLowerCase().trim();
+  return SECTOR_ALIASES[lower] ?? INDUSTRY_ALIASES[lower] ?? lower;
+}
+
+/**
+ * Match a Gemini sector name → screener sector code.
+ * Pass 0: alias table.
+ * Pass 1: case-insensitive substring either way.
+ * Pass 2: longest word from query that appears in a sector name.
+ */
+function matchSector(query: string, sectors: SectorInfo[]): string | null {
+  const q = _normalise(query);
+  const exact = sectors.find(s =>
+    s.name.toLowerCase().includes(q) || q.includes(s.name.toLowerCase())
+  );
+  if (exact) return exact.code;
+  const words = q.split(/\s+/).filter(w => w.length > 3).sort((a, b) => b.length - a.length);
+  for (const word of words) {
+    const hit = sectors.find(s => s.name.toLowerCase().includes(word));
+    if (hit) return hit.code;
+  }
+  return null;
+}
+
+/**
+ * Match a Gemini industry name → screener IndustryNode path.
+ * Pass 0: alias table.
+ * Pass 1: case-insensitive substring either way.
+ * Pass 2: longest meaningful word.
+ */
+function matchIndustry(query: string, allIndustries: IndustryNode[]): string | null {
+  const q = _normalise(query);
+  const exact = allIndustries.find(n =>
+    n.name.toLowerCase().includes(q) || q.includes(n.name.toLowerCase())
+  );
+  if (exact) return exact.path;
+  const words = q.split(/[\s/,]+/).filter(w => w.length > 3).sort((a, b) => b.length - a.length);
+  for (const word of words) {
+    const hit = allIndustries.find(n => n.name.toLowerCase().includes(word));
+    if (hit) return hit.path;
+  }
+  return null;
+}
+
 function SectorPulsePanel({
   analysis,
   loading,
+  loadingMsg,
   error,
   onRefresh,
+  sectors,
+  allIndustries,
+  onSectorClick,
+  onIndustryClick,
 }: {
   analysis: SectorAnalysis | null;
   loading: boolean;
+  loadingMsg?: string;
   error: string | null;
   onRefresh: () => void;
+  sectors: SectorInfo[];
+  allIndustries: IndustryNode[];
+  onSectorClick: (code: string) => void;
+  onIndustryClick: (path: string) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [tab,  setTab]  = useState<"sectors" | "buy" | "avoid">("sectors");
@@ -188,9 +324,12 @@ function SectorPulsePanel({
         <div className="px-4 py-3">
           {/* Loading */}
           {loading && (
-            <div className="flex items-center gap-2 text-gray-500 text-sm py-6 justify-center">
-              <RefreshCw size={15} className="animate-spin" />
-              Asking Gemini to analyse all 188 industries… (may take ~10s)
+            <div className="flex flex-col items-center gap-2 text-gray-500 text-sm py-6">
+              <div className="flex items-center gap-2">
+                <RefreshCw size={15} className="animate-spin" />
+                <span>{loadingMsg ?? "Asking Gemini to analyse all 188 industries…"}</span>
+              </div>
+              <span className="text-xs text-gray-600">This may take up to 30 s on first load</span>
             </div>
           )}
 
@@ -234,11 +373,20 @@ function SectorPulsePanel({
                 <div className="grid grid-cols-2 gap-2">
                   {analysis.sectors.map((sec, i) => {
                     const s = SIG_STYLES[sec.signal] ?? SIG_STYLES.HOLD;
+                    const code = matchSector(sec.name, sectors);
                     return (
-                      <div key={i} className={`rounded-lg px-3 py-2 border border-gray-800/60 ${s.bg}`}>
+                      <div
+                        key={i}
+                        onClick={() => code && onSectorClick(code)}
+                        className={`rounded-lg px-3 py-2 border border-gray-800/60 ${s.bg} ${
+                          code ? "cursor-pointer hover:brightness-125 transition-[filter]" : ""
+                        }`}
+                        title={code ? `View ${sec.name} sector` : undefined}
+                      >
                         <div className="flex items-center gap-2 mb-1">
                           <SignalBadge signal={sec.signal} />
                           <span className="text-xs font-medium text-white truncate">{sec.name}</span>
+                          {code && <ChevronRight size={11} className="text-gray-500 ml-auto shrink-0" />}
                         </div>
                         <p className="text-[11px] text-gray-400 leading-snug">{sec.rationale}</p>
                         <p className={`text-[10px] mt-1 font-mono ${s.text}`}>{sec.key_metrics}</p>
@@ -254,12 +402,21 @@ function SectorPulsePanel({
                   {(tab === "buy" ? analysis.top_buy_industries : analysis.top_avoid_industries).map((ind, i) => {
                     const signal = tab === "buy" ? "BUY" : "AVOID";
                     const s = SIG_STYLES[signal];
+                    const path = matchIndustry(ind.name, allIndustries);
                     return (
-                      <div key={i} className={`rounded-lg px-3 py-2 border border-gray-800/60 ${s.bg}`}>
+                      <div
+                        key={i}
+                        onClick={() => path && onIndustryClick(path)}
+                        className={`rounded-lg px-3 py-2 border border-gray-800/60 ${s.bg} ${
+                          path ? "cursor-pointer hover:brightness-125 transition-[filter]" : ""
+                        }`}
+                        title={path ? `View ${ind.name} industry` : undefined}
+                      >
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="text-[11px] font-bold tabular-nums text-gray-600 w-4 shrink-0">{i + 1}</span>
                           <span className="text-xs font-medium text-white flex-1">{ind.name}</span>
                           <span className={`text-[10px] font-mono ${s.text} shrink-0`}>{ind.metrics}</span>
+                          {path && <ChevronRight size={11} className="text-gray-500 shrink-0" />}
                         </div>
                         <p className="text-[11px] text-gray-400 leading-snug pl-6">{ind.rationale}</p>
                       </div>
@@ -632,9 +789,10 @@ export default function IndustryPage() {
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError]   = useState<string | null>(null);
 
-  const [pulse, setPulse]             = useState<SectorAnalysis | null>(null);
+  const [pulse, setPulse]               = useState<SectorAnalysis | null>(null);
   const [pulseLoading, setPulseLoading] = useState(true);
-  const [pulseError, setPulseError]   = useState<string | null>(null);
+  const [pulseLoadingMsg, setPulseLoadingMsg] = useState<string | undefined>(undefined);
+  const [pulseError, setPulseError]     = useState<string | null>(null);
 
   // active* are URL-driven
   const activeSector = sp.get("sector") ?? null;   // L1 code e.g. "IN08"
@@ -662,10 +820,35 @@ export default function IndustryPage() {
 
     setPulseLoading(true);
     setPulseError(null);
-    marketApi.getSectorAnalysis()
-      .then(setPulse)
-      .catch(e => setPulseError(e.message ?? "AI sector analysis unavailable"))
-      .finally(() => setPulseLoading(false));
+    setPulseLoadingMsg(undefined);
+    // getSectorAnalysis retries up to 3× with backoff — update message per attempt
+    // so the user sees progress rather than a static spinner
+    ;(async () => {
+      const MAX = 3;
+      for (let attempt = 0; attempt < MAX; attempt++) {
+        if (attempt > 0) {
+          setPulseLoadingMsg(`Retrying… (attempt ${attempt + 1}/${MAX})`);
+          await new Promise(res => setTimeout(res, attempt * 8_000));
+        }
+        try {
+          const result = await marketApi.getSectorAnalysis(false, 1); // 1 attempt per loop
+          setPulse(result);
+          setPulseLoading(false);
+          return;
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          const isRetryable = msg.includes("503") || msg.includes("AbortError")
+            || msg.includes("Failed to fetch") || msg.includes("aborted");
+          if (!isRetryable || attempt === MAX - 1) {
+            setPulseError(msg.includes("503")
+              ? "Gemini unavailable — sector analysis could not be generated. Try refreshing."
+              : (err instanceof Error ? err.message : "AI sector analysis unavailable"));
+            setPulseLoading(false);
+            return;
+          }
+        }
+      }
+    })();
   }, []);
 
   // Load stock table whenever active path or sector changes
@@ -734,7 +917,7 @@ export default function IndustryPage() {
   }, [activePath, activeSectorInfo]);
 
   return (
-    <div className="max-w-screen-xl mx-auto">
+    <div className="max-w-6xl mx-auto">
 
       {/* Sticky header bar */}
       <div className="sticky top-0 z-20 bg-gray-950 border-b border-gray-800/60 px-6 py-4">
@@ -892,11 +1075,17 @@ export default function IndustryPage() {
             <SectorPulsePanel
               analysis={pulse}
               loading={pulseLoading}
+              loadingMsg={pulseLoadingMsg}
               error={pulseError}
+              sectors={sectors}
+              allIndustries={allIndustries}
+              onSectorClick={selectSector}
+              onIndustryClick={selectOverviewRow}
               onRefresh={() => {
                 setPulseLoading(true);
                 setPulseError(null);
-                marketApi.getSectorAnalysis(true)
+                setPulseLoadingMsg(undefined);
+                marketApi.getSectorAnalysis(true, 1)
                   .then(setPulse)
                   .catch(e => setPulseError(e.message ?? "AI sector analysis unavailable"))
                   .finally(() => setPulseLoading(false));

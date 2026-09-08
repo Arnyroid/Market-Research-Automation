@@ -65,10 +65,15 @@ class Settings(BaseSettings):
     ntfy_server: str = "https://ntfy.sh"
     ntfy_priority: str = "high"      # min | low | default | high | urgent
 
+    # ── screener.in credentials (required for Penny Stocks dashboard) ─────────
+    # Set in .env:  SCREENER_EMAIL=you@example.com  SCREENER_PASSWORD=yourpass
+    screener_email:    str = ""
+    screener_password: str = ""
+
     # ── AI / LLM ─────────────────────────────────────────────────────────────
     gemini_api_key: str = ""
-    gemini_model: str = "models/gemini-flash-latest"
-    gemini_model_fallback: str = "models/gemini-flash-lite-latest"
+    gemini_model: str = "models/gemini-3.6-flash"
+    gemini_model_fallback: str = "models/gemini-2.5-flash"
     # How many days after an analysis to check actual outcome
     agent_feedback_days: int = 7
 
