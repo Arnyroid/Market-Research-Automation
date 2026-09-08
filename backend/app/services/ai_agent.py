@@ -201,33 +201,49 @@ def _run_analysis_inner(symbol: str, exchange: str, db: Session) -> Optional[Age
     )
 
     client = genai.Client(api_key=settings.gemini_api_key)
-    gen_cfg = genai_types.GenerateContentConfig(
-        system_instruction=_SYSTEM_PROMPT,
-        max_output_tokens=1024,
-        temperature=0.2,
-        response_mime_type="application/json",
-        response_schema=_analysis_schema,
-    )
 
     models_to_try = [settings.gemini_model]
     if settings.gemini_model_fallback and settings.gemini_model_fallback != settings.gemini_model:
         models_to_try.append(settings.gemini_model_fallback)
 
+    import json as _json
+
     structured: dict | None = None
     for attempt_model in models_to_try:
         try:
-            response = client.models.generate_content(
+            chat = client.chats.create(
                 model=attempt_model,
-                contents=user_msg,
-                config=gen_cfg,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=_SYSTEM_PROMPT,
+                    max_output_tokens=1024,
+                    temperature=0.2,
+                    response_mime_type="application/json",
+                    response_schema=_analysis_schema,
+                ),
             )
+            response = chat.send_message(user_msg)
             raw_text = (response.text or "").strip()
-            if raw_text:
-                import json as _json
+            if not raw_text:
+                logger.warning(f"Gemini returned empty response from {attempt_model}, trying fallback")
+                continue
+
+            # Strip accidental markdown fences Gemini sometimes adds despite schema enforcement
+            if raw_text.startswith("```"):
+                raw_text = raw_text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+
+            try:
                 structured = _json.loads(raw_text)
-                logger.info(f"Gemini OK using {attempt_model} for {symbol}")
-                break
-            logger.warning(f"Gemini returned empty response from {attempt_model}, trying fallback")
+            except _json.JSONDecodeError as json_exc:
+                # Truncated or malformed JSON — transient; try fallback model
+                logger.warning(
+                    f"Gemini {attempt_model} returned unparseable JSON for {symbol} "
+                    f"({json_exc}) — trying fallback model"
+                )
+                continue
+
+            logger.info(f"Gemini OK using {attempt_model} for {symbol}")
+            break
+
         except Exception as exc:
             err_str = str(exc)
             if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
@@ -584,14 +600,7 @@ def run_sector_analysis(
         required=["market_summary", "generated_at", "sectors", "top_buy_industries", "top_avoid_industries"],
     )
 
-    client  = genai.Client(api_key=settings.gemini_api_key)
-    gen_cfg = genai_types.GenerateContentConfig(
-        system_instruction=_SECTOR_SYSTEM_PROMPT,
-        max_output_tokens=2048,
-        temperature=0.3,
-        response_mime_type="application/json",
-        response_schema=_sector_schema,
-    )
+    client = genai.Client(api_key=settings.gemini_api_key)
 
     models_to_try = [settings.gemini_model]
     if settings.gemini_model_fallback and settings.gemini_model_fallback != settings.gemini_model:
@@ -600,11 +609,17 @@ def run_sector_analysis(
     result: dict | None = None
     for attempt_model in models_to_try:
         try:
-            response = client.models.generate_content(
+            chat = client.chats.create(
                 model=attempt_model,
-                contents=user_msg,
-                config=gen_cfg,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=_SECTOR_SYSTEM_PROMPT,
+                    max_output_tokens=2048,
+                    temperature=0.3,
+                    response_mime_type="application/json",
+                    response_schema=_sector_schema,
+                ),
             )
+            response = chat.send_message(user_msg)
             raw_text = (response.text or "").strip()
             if raw_text:
                 import json as _json

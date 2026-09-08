@@ -13,6 +13,7 @@ Columns covered:
   agent_analysis.structured_output    TEXT/JSON (nullable)
   agent_analysis.target_review_date   TEXT      (nullable)
   agent_analysis.news_context         TEXT/JSON (nullable)
+  portfolio.cap_tier                  TEXT      (nullable)
 
 Usage (from repo root, with venv activated):
   python scripts/migrate_db.py
@@ -52,6 +53,9 @@ def migrate():
     add_if_missing(cur, "agent_analysis", "structured_output",     "TEXT")
     add_if_missing(cur, "agent_analysis", "target_review_date",    "TEXT")
     add_if_missing(cur, "agent_analysis", "news_context",          "TEXT")
+
+    # ── portfolio ─────────────────────────────────────────────────────────────
+    add_if_missing(cur, "portfolio", "cap_tier", "TEXT")
 
     con.commit()
     con.close()

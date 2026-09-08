@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
-import { LayoutDashboard, Bell, TrendingUp, ShieldCheck, Briefcase, BarChart2 } from "lucide-react";
+import { LayoutDashboard, Bell, TrendingUp, ShieldCheck, Briefcase, BarChart2, Menu, X } from "lucide-react";
 import WatchlistPage   from "./pages/Watchlist";
 import PortfolioPage   from "./pages/Portfolio";
 import AlertsPage      from "./pages/Alerts";
@@ -65,53 +66,106 @@ function NotFoundPage() {
   );
 }
 
+// ── Sidebar nav content (shared between desktop + mobile drawer) ───────────────
+
+function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
+  return (
+    <>
+      {/* Logo */}
+      <div className="px-5 py-5 border-b border-gray-800">
+        <div className="flex items-center gap-2">
+          <TrendingUp size={20} className="text-blue-400" />
+          <span className="font-bold text-white text-base tracking-tight">StockAI</span>
+        </div>
+        <p className="text-xs text-gray-500 mt-0.5">Indian Equities Tracker</p>
+      </div>
+
+      {/* Nav links */}
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        {NAV.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === "/"}
+            onClick={onNavClick}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+              }`
+            }
+          >
+            <Icon size={16} />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Footer — live market status dot */}
+      <div className="px-5 py-4 border-t border-gray-800">
+        <MarketStatusDot />
+        <p className="text-xs text-gray-700 mt-0.5">NSE &amp; BSE · 9:15–15:30 IST</p>
+      </div>
+    </>
+  );
+}
+
 // ── App ────────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-950">
 
-      {/* ── Sidebar ───────────────────────────────────────────── */}
-      <aside className="w-56 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-gray-800">
-          <div className="flex items-center gap-2">
-            <TrendingUp size={20} className="text-blue-400" />
-            <span className="font-bold text-white text-base tracking-tight">StockAI</span>
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">Indian Equities Tracker</p>
-        </div>
+      {/* ── Desktop sidebar (hidden on mobile) ────────────────── */}
+      <aside className="w-56 shrink-0 bg-gray-900 border-r border-gray-800 flex-col hidden md:flex">
+        <SidebarContent />
+      </aside>
 
-        {/* Nav links */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === "/"}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-400 hover:bg-gray-800 hover:text-white"
-                }`
-              }
-            >
-              <Icon size={16} />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* Footer — live market status dot */}
-        <div className="px-5 py-4 border-t border-gray-800">
-          <MarketStatusDot />
-          <p className="text-xs text-gray-700 mt-0.5">NSE &amp; BSE · 9:15–15:30 IST</p>
-        </div>
+      {/* ── Mobile drawer overlay ──────────────────────────────── */}
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 md:hidden"
+          onClick={() => setDrawerOpen(false)}
+          aria-label="Close menu"
+        />
+      )}
+      <aside
+        className={`fixed top-0 left-0 z-50 h-full w-56 bg-gray-900 border-r border-gray-800 flex flex-col
+          transform transition-transform duration-200 ease-in-out md:hidden
+          ${drawerOpen ? "translate-x-0" : "-translate-x-full"}`}
+        aria-hidden={!drawerOpen}
+      >
+        {/* Close button inside drawer */}
+        <button
+          onClick={() => setDrawerOpen(false)}
+          className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+          aria-label="Close menu"
+        >
+          <X size={18} />
+        </button>
+        <SidebarContent onNavClick={() => setDrawerOpen(false)} />
       </aside>
 
       {/* ── Main content ──────────────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
+        {/* Mobile top bar */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-800 md:hidden bg-gray-900">
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="text-gray-400 hover:text-white transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <TrendingUp size={16} className="text-blue-400" />
+            <span className="font-bold text-white text-sm tracking-tight">StockAI</span>
+          </div>
+        </div>
+
         <Routes>
           <Route path="/"              element={<WatchlistPage />} />
           <Route path="/portfolio"     element={<PortfolioPage />} />

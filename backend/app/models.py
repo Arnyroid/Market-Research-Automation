@@ -103,6 +103,8 @@ class Portfolio(Base):
     current_value: Mapped[float] = mapped_column(Float, nullable=True)
     unrealized_pnl: Mapped[float] = mapped_column(Float, nullable=True)
     unrealized_pnl_pct: Mapped[float] = mapped_column(Float, nullable=True)
+    # "large" | "mid" | "small" — persisted from screener.in market_cap scrape
+    cap_tier: Mapped[str | None] = mapped_column(String(10), nullable=True)
     last_updated: Mapped[datetime] = mapped_column(DateTime, onupdate=func.now(),
                                                     server_default=func.now())
 

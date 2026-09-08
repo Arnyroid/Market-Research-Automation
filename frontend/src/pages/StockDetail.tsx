@@ -482,22 +482,101 @@ export default function StockDetailPage() {
   // history changes, not on every poll tick, tab switch, or UI hover.
   const chartData = useMemo(() => {
     const closes = history.map(b => b.close);
-    const sma20  = sma(closes, 20);
-    const ema20  = ema(closes, 20);
-    const dma50  = sma(closes, 50);
-    const dma200 = sma(closes, 200);
+    const sma20v  = sma(closes, 20);
+    const ema20v  = ema(closes, 20);
+    const dma50v  = sma(closes, 50);
+    const dma200v = sma(closes, 200);
     return history.map((b, i) => ({
       date:   b.timestamp.slice(0, 10),
       close:  b.close,
-      sma20:  sma20[i]  !== null ? parseFloat(sma20[i]!.toFixed(2))  : undefined,
-      ema20:  ema20[i]  !== null ? parseFloat(ema20[i]!.toFixed(2))  : undefined,
-      dma50:  dma50[i]  !== null ? parseFloat(dma50[i]!.toFixed(2))  : undefined,
-      dma200: dma200[i] !== null ? parseFloat(dma200[i]!.toFixed(2)) : undefined,
+      sma20:  sma20v[i]  !== null ? parseFloat(sma20v[i]!.toFixed(2))  : undefined,
+      ema20:  ema20v[i]  !== null ? parseFloat(ema20v[i]!.toFixed(2))  : undefined,
+      dma50:  dma50v[i]  !== null ? parseFloat(dma50v[i]!.toFixed(2))  : undefined,
+      dma200: dma200v[i] !== null ? parseFloat(dma200v[i]!.toFixed(2)) : undefined,
     }));
   }, [history]);
 
-  // ── Indicator snapshot (from latest analysis) ─────────────────────────────
-  const snap = analysis?.indicators_snapshot as Record<string, number | null> | null;
+  // ── Live indicator snapshot computed from price history ───────────────────
+  // Computed from history whenever analysis hasn't been run yet (or is stale).
+  // Falls back to stored analysis.indicators_snapshot when history is empty.
+  const liveSnap = useMemo(() => {
+    const n = history.length;
+    if (n === 0) return null;
+    const closes = history.map(b => b.close);
+
+    // Moving averages (reuse last value of the series computed above)
+    const sma20v  = sma(closes, 20);
+    const ema20v  = ema(closes, 20);
+    const dma50v  = sma(closes, 50);
+    const dma200v = sma(closes, 200);
+
+    const last20  = sma20v[n - 1]  ?? null;
+    const lastE20 = ema20v[n - 1]  ?? null;
+    const last50  = dma50v[n - 1]  ?? null;
+    const last200 = dma200v[n - 1] ?? null;
+    const price   = closes[n - 1] ?? null;
+
+    // RSI-14
+    let rsi14: number | null = null;
+    if (n >= 15) {
+      const delta = closes.map((c, i) => i === 0 ? 0 : c - closes[i - 1]);
+      const gains = delta.map(d => Math.max(d, 0));
+      const losses = delta.map(d => Math.max(-d, 0));
+      let avgGain = gains.slice(1, 15).reduce((a, b) => a + b, 0) / 14;
+      let avgLoss = losses.slice(1, 15).reduce((a, b) => a + b, 0) / 14;
+      for (let i = 15; i < n; i++) {
+        avgGain = (avgGain * 13 + gains[i]) / 14;
+        avgLoss = (avgLoss * 13 + losses[i]) / 14;
+      }
+      rsi14 = avgLoss === 0 ? 100 : parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+    }
+
+    // Realized volatility (30d annualised)
+    let vol30: number | null = null;
+    if (n >= 31) {
+      const rets = closes.slice(-31).map((c, i, a) => i === 0 ? 0 : (c - a[i - 1]) / a[i - 1]).slice(1);
+      const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+      const variance = rets.reduce((a, b) => a + (b - mean) ** 2, 0) / rets.length;
+      vol30 = parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
+    }
+
+    // % changes
+    const pct5d  = n >= 6  ? parseFloat((((closes[n-1] - closes[n-6])  / closes[n-6])  * 100).toFixed(2)) : null;
+    const pct30d = n >= 31 ? parseFloat((((closes[n-1] - closes[n-31]) / closes[n-31]) * 100).toFixed(2)) : null;
+    const pct1d  = n >= 2  ? parseFloat((((closes[n-1] - closes[n-2])  / closes[n-2])  * 100).toFixed(2)) : null;
+    const vsma20 = price && last20 ? parseFloat((((price - last20) / last20) * 100).toFixed(2)) : null;
+
+    return {
+      current_price:          price,
+      pct_change_1d:          pct1d,
+      pct_change_5d:          pct5d,
+      pct_change_30d:         pct30d,
+      sma_20:                 last20  !== null ? parseFloat(last20.toFixed(2))  : null,
+      ema_20:                 lastE20 !== null ? parseFloat(lastE20.toFixed(2)) : null,
+      sma_50:                 last50  !== null ? parseFloat(last50.toFixed(2))  : null,
+      sma_200:                last200 !== null ? parseFloat(last200.toFixed(2)) : null,
+      rsi_14:                 rsi14,
+      realized_volatility_30d: vol30,
+      price_vs_sma20_pct:     vsma20,
+    };
+  }, [history]);
+
+  // Merge: use liveSnap as the base (always up-to-date from 300-day history),
+  // then overlay any non-null values from the stored analysis snapshot so the
+  // Gemini-computed snapshot (which may have been run on a sparse DB) doesn't
+  // shadow live values with null.
+  const storedSnap = analysis?.indicators_snapshot as Record<string, number | null> | null;
+  const snap = liveSnap
+    ? {
+        ...liveSnap,
+        // Overwrite with stored values only when they are non-null
+        ...(storedSnap
+          ? Object.fromEntries(
+              Object.entries(storedSnap).filter(([, v]) => v != null)
+            )
+          : {}),
+      }
+    : storedSnap;
   const ltp  = snap?.current_price;
   const pct1 = snap?.pct_change_1d;
 

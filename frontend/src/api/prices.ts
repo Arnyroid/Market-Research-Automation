@@ -27,4 +27,10 @@ export const pricesApi = {
     apiFetch<Quote>(`/prices/${symbol}?exchange=${exchange}`, {}, signal),
   getHistory: (symbol: string, exchange: string, days = 30, signal?: AbortSignal) =>
     apiFetch<OHLCVBar[]>(`/prices/${symbol}/history?exchange=${exchange}&days=${days}`, {}, signal),
+  /** Fetch quotes for multiple symbols in one parallel backend call. */
+  getBatch:   (symbols: { symbol: string; exchange: string }[], signal?: AbortSignal) =>
+    apiFetch<Quote[]>(`/prices/batch`, {
+      method: "POST",
+      body: JSON.stringify({ symbols }),
+    }, signal),
 };

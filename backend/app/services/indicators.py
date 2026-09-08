@@ -121,7 +121,7 @@ def compute_indicators(symbol: str, exchange: str, db: Session) -> IndicatorSnap
 
     # ── Realized volatility (30-day annualised) ───────────────────────────────
     if n >= 31:
-        log_returns = closes.pct_change().dropna()[-30:]
+        log_returns = closes.pct_change(fill_method=None).dropna()[-30:]
         snap.realized_volatility_30d = round(
             float(log_returns.std() * (252 ** 0.5) * 100), 2
         )  # expressed as %

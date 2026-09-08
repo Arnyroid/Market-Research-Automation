@@ -4,6 +4,7 @@ FastAPI application entry point.
 Lifespan:
   - Creates all DB tables on startup.
   - Starts APScheduler on startup and shuts it down on exit.
+  - Warms the in-process quote cache by fetching all watchlist symbols in background.
 """
 from contextlib import asynccontextmanager
 
@@ -13,9 +14,9 @@ from fastapi.responses import RedirectResponse
 from loguru import logger
 
 from backend.app.core.config import get_settings
-from backend.app.core.db import Base, engine
+from backend.app.core.db import Base, engine, SessionLocal
 from backend.app.jobs.scheduler import get_scheduler
-from backend.app.services.data_fetch import _ensure_nse_symbols
+from backend.app.services.data_fetch import _ensure_nse_symbols, _ensure_bse_symbols
 from backend.app.routers import (
     alerts,
     analysis,
@@ -30,19 +31,54 @@ from backend.app.routers import (
 settings = get_settings()
 
 
+def _warm_quote_cache() -> None:
+    """
+    Background task: fetch live quotes for every watchlist symbol at startup
+    so the first page load is served from cache rather than hitting yfinance cold.
+    Runs in a daemon thread — any exception is logged and silently swallowed.
+    """
+    import threading
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from backend.app.models import Watchlist
+    from backend.app.services.data_fetch import fetch_quote
+
+    def _do_warm():
+        try:
+            db = SessionLocal()
+            try:
+                symbols = db.query(Watchlist).all()
+            finally:
+                db.close()
+            if not symbols:
+                return
+            logger.info(f"cache warm-up: fetching {len(symbols)} watchlist symbols…")
+            with ThreadPoolExecutor(max_workers=min(20, len(symbols))) as pool:
+                futures = {pool.submit(fetch_quote, item.symbol, item.exchange): item for item in symbols}
+                ok = sum(1 for f in as_completed(futures) if f.result() is not None)
+            logger.info(f"cache warm-up: {ok}/{len(symbols)} symbols cached")
+        except Exception as exc:
+            logger.warning(f"cache warm-up failed (non-fatal): {exc}")
+
+    threading.Thread(target=_do_warm, daemon=True, name="quote-cache-warmup").start()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── Startup ──────────────────────────────────────────────────────────────
     logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
 
-    logger.info("Pre-loading NSE equity master...")
+    logger.info("Pre-loading NSE + BSE equity masters…")
     import threading
     threading.Thread(target=_ensure_nse_symbols, daemon=True).start()
+    threading.Thread(target=_ensure_bse_symbols, daemon=True).start()
 
     logger.info("Starting APScheduler...")
     scheduler = get_scheduler()
     scheduler.start()
+
+    # Warm the quote cache in background — first page load will be instant
+    _warm_quote_cache()
 
     yield
 
@@ -87,3 +123,27 @@ def root():
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/health/scheduler", tags=["Health"])
+def health_scheduler():
+    """
+    Returns scheduler status, all registered jobs, their next fire times,
+    and whether the scheduler is currently running.
+    """
+    from datetime import timezone
+    sched = get_scheduler()
+    jobs = []
+    for job in sched.get_jobs():
+        next_run = job.next_run_time
+        jobs.append({
+            "id":          job.id,
+            "name":        job.name,
+            "next_run_utc": next_run.astimezone(timezone.utc).isoformat() if next_run else None,
+            "next_run_ist": next_run.isoformat() if next_run else None,
+            "trigger":     str(job.trigger),
+        })
+    return {
+        "running": sched.running,
+        "jobs":    jobs,
+    }

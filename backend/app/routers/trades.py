@@ -205,8 +205,9 @@ def delete_trade(trade_id: int, db: Session = Depends(get_db)):
 @router.get("/portfolio", response_model=list[PortfolioOut])
 def get_portfolio(db: Session = Depends(get_db)):
     rows = db.query(Portfolio).filter(Portfolio.total_quantity > 0).all()
-    # Annotate each row with a cap tier from the in-process fundamentals cache
-    # (no network calls — only hits if fundamentals were already fetched)
+    # cap_tier is now persisted on the Portfolio row (written by _recalculate_portfolio
+    # whenever fetch_fundamentals succeeds).  We additionally check the in-process
+    # fundamentals cache — if a fresher scrape is in memory, prefer that.
     from backend.app.services.data_fetch import _fundamentals_cache
     result: list[PortfolioOut] = []
     for row in rows:
@@ -214,8 +215,15 @@ def get_portfolio(db: Session = Depends(get_db)):
         cached_fund = _fundamentals_cache.get(f"{row.symbol.upper()}:{row.exchange.upper()}")
         if cached_fund and not cached_fund.error and cached_fund.market_cap is not None:
             mc = cached_fund.market_cap
-            out.cap_tier = "large" if mc >= 20_000 else "mid" if mc >= 5_000 else "small"
+            tier = "large" if mc >= 20_000 else "mid" if mc >= 5_000 else "small"
+            out.cap_tier = tier
+            # Persist back to DB if changed
+            if row.cap_tier != tier:
+                row.cap_tier = tier
+        # Fall back to whatever is already stored on the row
+        # (out.cap_tier is already set from model_validate above)
         result.append(out)
+    db.commit()
     return result
 
 
@@ -494,5 +502,19 @@ def _recalculate_portfolio(symbol: str, exchange: str, db: Session) -> None:
             row.unrealized_pnl_pct = unrealized_pnl_pct
     except Exception:
         pass  # P&L stays null — not fatal
+
+    # ── Persist cap tier from fundamentals cache (no network call) ────────────
+    # If fundamentals were already scraped for this symbol (e.g. the user opened
+    # the StockDetail page, or the portfolio page background-fetched them), write
+    # cap_tier to the DB row so it survives restarts and isn't lost on 429s.
+    if row.cap_tier is None:
+        try:
+            from backend.app.services.data_fetch import _fundamentals_cache
+            cached_fund = _fundamentals_cache.get(f"{symbol.upper()}:{exchange.upper()}")
+            if cached_fund and not cached_fund.error and cached_fund.market_cap is not None:
+                mc = cached_fund.market_cap
+                row.cap_tier = "large" if mc >= 20_000 else "mid" if mc >= 5_000 else "small"
+        except Exception:
+            pass
 
     db.commit()

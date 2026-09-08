@@ -98,26 +98,19 @@ export default function WatchlistPage() {
   const { prices: livePrices, connected } = usePriceSocket();
   const navigate = useNavigate();
 
-  // ── Load watchlist + pre-fetch prices ──────────────────────────────────────
+  // ── Load watchlist + batch-fetch all prices in one request ─────────────────
   useEffect(() => {
     watchlistApi.list().then(loaded => {
       setItems(loaded);
-      loaded.forEach(item => {
-        pricesApi.getQuote(item.symbol, item.exchange)
-          .then(q => {
-            setRestPrices(prev => {
-              const next = new Map(prev);
-              next.set(`${item.symbol}:${item.exchange}`, q);
-              return next;
-            });
-            if (!item.company_name && q.company_name) {
-              setItems(prev => prev.map(i =>
-                i.id === item.id ? { ...i, company_name: q.company_name } : i
-              ));
-            }
-          })
-          .catch(() => {});
-      });
+      if (!loaded.length) return;
+      // Single POST /prices/batch — backend fans out in parallel with ThreadPoolExecutor
+      pricesApi.getBatch(loaded.map(i => ({ symbol: i.symbol, exchange: i.exchange })))
+        .then(quotes => {
+          const next = new Map<string, Quote>();
+          quotes.forEach(q => next.set(`${q.symbol}:${q.exchange}`, q));
+          setRestPrices(next);
+        })
+        .catch(() => {});
     }).catch(console.error);
   }, []);
 
@@ -382,7 +375,21 @@ export default function WatchlistPage() {
               <SortTh label="1D %"    sortKey="pct_change" current={sortKey} dir={sortDir} onSort={setSort} className="text-right" />
               {/* #2 — new columns */}
               <th className="th text-right whitespace-nowrap hidden lg:table-cell">Day Range</th>
-              <SortTh label="Volume"  sortKey="volume"     current={sortKey} dir={sortDir} onSort={setSort} className="text-right hidden lg:table-cell" />
+              <th
+                className="th text-right hidden lg:table-cell cursor-pointer select-none hover:text-white transition-colors"
+                onClick={() => setSort("volume")}
+                title="3-month average daily volume (from Yahoo Finance)"
+              >
+                <span className="inline-flex items-center gap-1">
+                  Avg Vol
+                  <span className="text-gray-600 font-normal text-[10px]">3M</span>
+                  {sortKey === "volume"
+                    ? sortDir === "asc"
+                      ? <ChevronUp size={12} className="text-blue-400" />
+                      : <ChevronDown size={12} className="text-blue-400" />
+                    : <ChevronsUpDown size={12} className="text-gray-500" />}
+                </span>
+              </th>
               <th className="th w-24 text-right">Actions</th>
             </tr>
           </thead>
@@ -471,8 +478,8 @@ export default function WatchlistPage() {
                     </div>
                   </td>
 
-                  {/* #2 — Volume */}
-                  <td className="td text-right font-mono text-gray-400 hidden lg:table-cell">
+                  {/* #2 — Avg Vol (3M) */}
+                  <td className="td text-right font-mono text-gray-400 hidden lg:table-cell" title="3-month average daily volume">
                     {item.volume != null
                       ? item.volume >= 1_000_000
                         ? `${(item.volume / 1_000_000).toFixed(1)}M`

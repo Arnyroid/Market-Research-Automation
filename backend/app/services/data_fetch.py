@@ -24,6 +24,73 @@ from typing import Optional
 import requests
 from loguru import logger
 
+
+# ── In-process quote cache ────────────────────────────────────────────────────
+# Keyed by "SYMBOL:EXCHANGE" (upper-case).
+# Written by the price poller (and on individual fetch_quote calls).
+# Read by /prices/batch, /prices/{symbol}, and the WebSocket push.
+# This means page loads serve instantly from cache — no yfinance on every request.
+
+@dataclass
+class _CachedQuote:
+    result:    "QuoteResult"
+    fetched_at: datetime
+
+
+_quote_cache: dict[str, _CachedQuote] = {}
+_quote_cache_lock = threading.Lock()
+
+# Cache TTL:
+#   During market hours the poller refreshes every N minutes, so reads are
+#   always fresh.  Outside market hours prices don't change — serve cache
+#   indefinitely until next market open (24h cap to handle weekend rollovers).
+_QUOTE_CACHE_TTL_MARKET   = timedelta(minutes=10)   # stale after 10 min during hours
+_QUOTE_CACHE_TTL_OFFHOURS = timedelta(hours=24)     # fine to hold overnight / weekends
+
+
+def _cache_key(symbol: str, exchange: str) -> str:
+    return f"{symbol.upper()}:{exchange.upper()}"
+
+
+def cache_quote(result: "QuoteResult") -> None:
+    """Write a QuoteResult into the in-process cache. Called by the poller."""
+    key = _cache_key(result.symbol, result.exchange)
+    with _quote_cache_lock:
+        _quote_cache[key] = _CachedQuote(result=result, fetched_at=datetime.utcnow())
+
+
+def get_cached_quote(symbol: str, exchange: str) -> "QuoteResult | None":
+    """
+    Return a cached quote if it exists and is not stale, else None.
+    Staleness depends on whether we are currently in market hours.
+    """
+    key = _cache_key(symbol, exchange)
+    with _quote_cache_lock:
+        entry = _quote_cache.get(key)
+    if entry is None:
+        return None
+    age = datetime.utcnow() - entry.fetched_at
+    # Simple market-hours check in UTC: IST 9:15–15:30 = UTC 3:45–10:00
+    now_utc_hm = datetime.utcnow().strftime("%H:%M")
+    in_market = "03:45" <= now_utc_hm <= "10:00"
+    ttl = _QUOTE_CACHE_TTL_MARKET if in_market else _QUOTE_CACHE_TTL_OFFHOURS
+    if age > ttl:
+        return None
+    return entry.result
+
+
+def get_all_cached_quotes() -> list["QuoteResult"]:
+    """Return all currently valid cached quotes (used by WebSocket push)."""
+    now = datetime.utcnow()
+    now_utc_hm = now.strftime("%H:%M")
+    in_market = "03:45" <= now_utc_hm <= "10:00"
+    ttl = _QUOTE_CACHE_TTL_MARKET if in_market else _QUOTE_CACHE_TTL_OFFHOURS
+    with _quote_cache_lock:
+        return [
+            e.result for e in _quote_cache.values()
+            if (now - e.fetched_at) <= ttl
+        ]
+
 try:
     import yfinance as yf
     YF_AVAILABLE = True
@@ -121,6 +188,7 @@ def fetch_ohlcv(symbol: str, exchange: str, days: int = 30) -> list[OHLCVResult]
 def fetch_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
     """
     Fetch a live quote for the given symbol on the given exchange via yfinance.
+    Result is written into the in-process quote cache on success.
 
     Parameters
     ----------
@@ -134,10 +202,10 @@ def fetch_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
 
     exchange = exchange.upper()
     try:
-        if exchange == "BSE":
-            return _fetch_yf_quote(symbol, "BSE")
-        else:
-            return _fetch_yf_quote(symbol, "NSE")
+        result = _fetch_yf_quote(symbol, exchange)
+        if result is not None:
+            cache_quote(result)
+        return result
     except Exception as exc:
         logger.error(f"fetch_quote failed for {symbol}/{exchange}: {exc}")
         return None
@@ -145,12 +213,25 @@ def fetch_quote(symbol: str, exchange: str) -> Optional[QuoteResult]:
 
 # ── NSE symbol master — downloaded once, searched in memory ──────────────────
 
-_nse_symbols: list[dict] = []          # [{symbol, name}]
+_nse_symbols: list[dict] = []          # [{symbol, name, isin}]
 _nse_load_lock = threading.Lock()
 _nse_loaded = False
 
 _NSE_CSV_URL = (
     "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+)
+
+# ── BSE symbol master — downloaded once, searched in memory ──────────────────
+# BSE scrip master: SecurityId (NSE-style symbol), SecurityName, ScripCode (6-digit), ISIN
+# Columns: Exchange,SecurityCode,SecurityId,SecurityName,Status,GroupName,FaceValue,ISINNo
+
+_bse_symbols: list[dict] = []          # [{symbol, name, scrip_code, isin}]
+_bse_load_lock = threading.Lock()
+_bse_loaded = False
+
+_BSE_CSV_URL = (
+    "https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w"
+    "?Group=&Scripcode=&industry=&segment=Equity&Status=Active"
 )
 
 
@@ -185,20 +266,68 @@ def _ensure_nse_symbols() -> None:
             logger.warning(f"Could not load NSE equity master: {exc}")
 
 
+def _ensure_bse_symbols() -> None:
+    """
+    Download and cache the BSE equity scrip master (runs at most once).
+    BSE returns a JSON array from their API.  Each element has:
+      SCRIP_CD  → numeric scrip code (e.g. "500325")
+      SCRIP_ID  → NSE-style symbol / BSE short symbol (e.g. "RELIANCE")
+      SCRIP_NM  → full company name
+      ISIN_CODE → ISIN
+    Falls back gracefully if the endpoint is unavailable.
+    """
+    global _bse_symbols, _bse_loaded
+    if _bse_loaded:
+        return
+    with _bse_load_lock:
+        if _bse_loaded:
+            return
+        try:
+            resp = requests.get(
+                _BSE_CSV_URL,
+                timeout=15,
+                headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Referer": "https://www.bseindia.com/",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            rows: list[dict] = []
+            for item in data:
+                sym  = (item.get("SCRIP_ID") or item.get("scrip_id") or "").strip()
+                name = (item.get("SCRIP_NM") or item.get("scrip_nm") or "").strip()
+                code = str(item.get("SCRIP_CD") or item.get("scrip_cd") or "").strip()
+                isin = (item.get("ISIN_CODE") or item.get("isin_code") or "").strip()
+                if sym and name:
+                    rows.append({"symbol": sym, "name": name, "scrip_code": code, "isin": isin})
+            _bse_symbols = rows
+            _bse_loaded = True
+            logger.info(f"BSE equity master loaded: {len(_bse_symbols)} symbols")
+        except Exception as exc:
+            logger.warning(f"Could not load BSE equity master (non-fatal): {exc}")
+            _bse_loaded = True   # mark as attempted so we don't retry on every search
+
+
 def search_symbols(query: str) -> list[SymbolInfo]:
     """
-    Search NSE equity master by symbol or company name.
-    Returns up to 10 matches, ranked: exact symbol prefix first, then name matches.
+    Search NSE + BSE equity masters by symbol or company name.
+    Returns up to 15 matches total (10 NSE + 5 BSE), ranked:
+      exact symbol prefix first, then name matches.
+    Results are deduplicated by ISIN so the same company doesn't appear twice.
     """
     if not query or len(query) < 1:
         return []
 
     _ensure_nse_symbols()
+    _ensure_bse_symbols()
 
     q = query.strip().upper()
     exact:   list[SymbolInfo] = []
     partial: list[SymbolInfo] = []
 
+    # ── NSE ───────────────────────────────────────────────────────────────────
+    seen_isins: set[str] = set()
     for row in _nse_symbols:
         sym  = row["symbol"].upper()
         name = row["name"].upper()
@@ -209,10 +338,35 @@ def search_symbols(query: str) -> list[SymbolInfo]:
         )
         if sym == q or sym.startswith(q):
             exact.append(info)
+            seen_isins.add(row.get("isin", ""))
         elif q in sym or q in name:
             partial.append(info)
+            seen_isins.add(row.get("isin", ""))
 
-    return (exact + partial)[:10]
+    nse_results = (exact + partial)[:10]
+
+    # ── BSE — add unique entries not already covered by NSE ISIN match ────────
+    bse_exact:   list[SymbolInfo] = []
+    bse_partial: list[SymbolInfo] = []
+    for row in _bse_symbols:
+        isin = row.get("isin", "")
+        if isin and isin in seen_isins:
+            continue   # already returned via NSE
+        sym  = row["symbol"].upper()
+        name = row["name"].upper()
+        info = SymbolInfo(
+            symbol=row["symbol"],
+            exchange="BSE",
+            company_name=row["name"],
+        )
+        if sym == q or sym.startswith(q):
+            bse_exact.append(info)
+        elif q in sym or q in name:
+            bse_partial.append(info)
+
+    bse_results = (bse_exact + bse_partial)[:5]
+
+    return nse_results + bse_results
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -262,12 +416,9 @@ def _yf_ticker_quote(ticker_str: str, symbol: str, exchange: str) -> Optional[Qu
         if ltp and prev_close and prev_close != 0:
             pct_change = round((ltp - prev_close) / prev_close * 100, 2)
 
-        # Company name — only fetched when fast_info succeeds (cached by yfinance)
+        # Company name — skip ticker.info (slow ~500ms dict download).
+        # The watchlist DB already stores company_name; the quote only needs price data.
         company_name = ""
-        try:
-            company_name = ticker.info.get("longName") or ticker.info.get("shortName") or ""
-        except Exception:
-            pass
 
         return QuoteResult(
             symbol=symbol,
@@ -479,24 +630,46 @@ def _scrape_screener(symbol: str) -> FundamentalsResult:
 
     result = FundamentalsResult(symbol=symbol)
 
-    # Try consolidated page first, fall back to standalone
+    # Try consolidated page first, fall back to standalone.
+    # Some small-caps (e.g. BAIDFIN) have a consolidated URL that returns HTTP 200
+    # but serves a page with all ratio <span class="number"> values blank — the
+    # company does not report consolidated financials.  Detect this empty shell
+    # and fall back to the standalone page.
+    resp = None
     for path in [f"/company/{symbol}/consolidated/", f"/company/{symbol}/"]:
         try:
-            resp = requests.get(
+            r = requests.get(
                 f"{_SCREENER_BASE}{path}",
                 headers=_SCREENER_HEADERS,
                 timeout=20,
             )
-            if resp.status_code == 200:
-                break
-            if resp.status_code == 404:
+            if r.status_code == 404:
                 continue
-            resp.raise_for_status()
+            if r.status_code != 200:
+                r.raise_for_status()
+            # Quick check: are there any non-empty number spans?
+            # If the page is a blank consolidated shell, all spans will be empty.
+            from bs4 import BeautifulSoup as _BS
+            _quick = _BS(r.text, "lxml")
+            _ul = _quick.find("ul", id="top-ratios")
+            _has_data = False
+            if _ul:
+                for _span in _ul.find_all("span", class_="number"):
+                    if _span.get_text(strip=True):
+                        _has_data = True
+                        break
+            if _has_data:
+                resp = r
+                break
+            # 200 but no data — keep trying next path (standalone)
+            logger.debug(f"screener.in {path}: 200 but all ratio spans empty — trying standalone")
+            resp = r   # keep as last resort if standalone also fails
         except Exception as exc:
             logger.warning(f"screener.in page fetch failed for {symbol}: {exc}")
             result.error = str(exc)
             return result
-    else:
+
+    if resp is None:
         result.error = f"No screener.in page found for {symbol}"
         logger.warning(result.error)
         return result
@@ -587,21 +760,32 @@ def _scrape_screener(symbol: str) -> FundamentalsResult:
                 _parse_growth_table_rows(rows[1:], result, kind="profit")
 
     # ── EPS (TTM) — last cell of 'EPS in Rs' row in the P&L table ────────────
+    # IMPORTANT: the P&L table unit is "Figures in Rs. Crores" but the EPS row
+    # is always expressed in plain rupees (not Crores). However, screener.in
+    # sometimes shows EPS pre-multiplied by 1e5 (Lakh scale) for certain companies
+    # in their consolidated view, producing absurd values like 1,181,900.
+    # Safe rule: only use the P&L EPS fallback when the table unit does NOT
+    # contain "Crore" (i.e., the table is in plain Rs. units already).
+    # For Crore-denominated tables the top-ratios bar is the authoritative source.
     if pl_sec and result.eps is None:
-        tbl = pl_sec.find("table")
-        if tbl:
-            for tr in tbl.find_all("tr"):
-                cells = tr.find_all(["td", "th"])
-                if not cells:
-                    continue
-                label = cells[0].get_text(strip=True).lower()
-                if "eps" in label:
-                    # Take the last non-empty numeric cell (TTM or most recent year)
-                    for cell in reversed(cells[1:]):
-                        val = _parse_screener_number(cell.get_text(strip=True))
-                        if val is not None:
-                            result.eps = val
-                            break
+        # Check the unit of this section
+        sub_p = pl_sec.find("p", class_="sub")
+        pl_unit = sub_p.get_text(strip=True).lower() if sub_p else ""
+        if "crore" not in pl_unit and "cr." not in pl_unit:
+            tbl = pl_sec.find("table")
+            if tbl:
+                for tr in tbl.find_all("tr"):
+                    cells = tr.find_all(["td", "th"])
+                    if not cells:
+                        continue
+                    label = cells[0].get_text(strip=True).lower()
+                    if "eps" in label and "per share" not in label:
+                        # Take the last non-empty numeric cell (TTM or most recent year)
+                        for cell in reversed(cells[1:]):
+                            val = _parse_screener_number(cell.get_text(strip=True))
+                            if val is not None:
+                                result.eps = val
+                                break
 
     # ── Debt-to-Equity from Balance Sheet table ───────────────────────────────
     # screener.in doesn't include D/E directly in top-ratios for all companies;
@@ -881,19 +1065,32 @@ def _fetch_peers_into(warehouse_id: str, result: FundamentalsResult) -> None:
                 result.industry_pe_median = _col(cells, "p/e")
                 continue   # don't add median as a peer row
 
-            # Regular company row — find the <a> link for symbol
+            # Regular company row — find the <a> link for symbol + company name.
+            # screener.in peer table structure:
+            #   <td><a href="/company/ircon/">IRCON</a><br>IRCON International Ltd</td>
+            # a.get_text() gives the NSE ticker/slug; the full td text includes the
+            # company name after the link.  We want the full td text as the display
+            # name and the slug (uppercased) as the symbol.
             symbol: str | None = None
             name = ""
             for cell in cells:
                 a = cell.find("a")
                 if a and "/company/" in (a.get("href") or ""):
-                    name = a.get_text(strip=True)
+                    # Extract symbol from href slug
                     parts = (a["href"] or "").strip("/").split("/")
                     try:
                         idx = parts.index("company")
                         symbol = parts[idx + 1].upper() if idx + 1 < len(parts) else None
                     except ValueError:
                         symbol = None
+                    # Full cell text includes company name (may be multi-line after <br>)
+                    full_text = cell.get_text(separator=" ", strip=True)
+                    # Remove the ticker prefix if it duplicates the slug at the start
+                    slug_upper = symbol or ""
+                    if full_text.upper().startswith(slug_upper) and len(full_text) > len(slug_upper):
+                        name = full_text[len(slug_upper):].strip(" -–:")
+                    if not name:
+                        name = full_text
                     break
 
             if not name:
@@ -1088,16 +1285,119 @@ _industry_page_cache: dict[str, IndustryPageResult] = {}
 _industry_page_lock   = threading.Lock()
 
 
+# ── Disk persistence for slow scraped caches ──────────────────────────────────
+# Avoids re-scraping screener.in on every backend restart.
+# Files are written after each successful scrape and read on cache miss.
+
+import json as _json_mod
+import pathlib as _pathlib
+
+_DATA_DIR = _pathlib.Path(__file__).resolve().parents[3] / "data"
+
+
+def _disk_path(name: str) -> _pathlib.Path:
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return _DATA_DIR / f"_cache_{name}.json"
+
+
+def _disk_save(name: str, payload: dict) -> None:
+    """Persist a JSON payload to disk (non-fatal on failure)."""
+    try:
+        p = _disk_path(name)
+        p.write_text(_json_mod.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except Exception as exc:
+        logger.debug(f"disk cache write failed for {name}: {exc}")
+
+
+def _disk_load(name: str) -> dict | None:
+    """Load JSON payload from disk; return None if absent or corrupt."""
+    try:
+        p = _disk_path(name)
+        if not p.exists():
+            return None
+        return _json_mod.loads(p.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.debug(f"disk cache read failed for {name}: {exc}")
+        return None
+
+
+# ── Serialise / deserialise IndustryOverviewRow list ─────────────────────────
+
+def _overview_to_disk(rows: list[IndustryOverviewRow]) -> None:
+    import dataclasses as _dc
+    _disk_save("industry_overview", {
+        "ts": time.time(),
+        "rows": [_dc.asdict(r) for r in rows],
+    })
+
+
+def _overview_from_disk() -> tuple[list[IndustryOverviewRow], float] | None:
+    d = _disk_load("industry_overview")
+    if not d:
+        return None
+    try:
+        rows = [IndustryOverviewRow(**r) for r in d["rows"]]
+        return rows, float(d["ts"])
+    except Exception:
+        return None
+
+
+# ── Serialise / deserialise SectorInfo list ───────────────────────────────────
+
+def _node_to_dict(n: "IndustryNode") -> dict:
+    return {
+        "name": n.name, "path": n.path, "depth": n.depth,
+        "stock_count": n.stock_count,
+        "children": [_node_to_dict(c) for c in n.children],
+    }
+
+
+def _node_from_dict(d: dict) -> "IndustryNode":
+    return IndustryNode(
+        name=d["name"], path=d["path"], depth=d["depth"],
+        stock_count=d.get("stock_count"),
+        children=[_node_from_dict(c) for c in d.get("children", [])],
+    )
+
+
+def _sectors_to_disk(sectors: list[SectorInfo]) -> None:
+    _disk_save("sector_index", {
+        "ts": time.time(),
+        "sectors": [
+            {
+                "code": s.code, "name": s.name, "path": s.path,
+                "children": [_node_to_dict(c) for c in s.children],
+            }
+            for s in sectors
+        ],
+    })
+
+
+def _sectors_from_disk() -> tuple[list[SectorInfo], float] | None:
+    d = _disk_load("sector_index")
+    if not d:
+        return None
+    try:
+        sectors = [
+            SectorInfo(
+                code=s["code"], name=s["name"], path=s["path"],
+                children=[_node_from_dict(c) for c in s.get("children", [])],
+            )
+            for s in d["sectors"]
+        ]
+        return sectors, float(d["ts"])
+    except Exception:
+        return None
+
 
 def fetch_industry_overview(force: bool = False) -> list[IndustryOverviewRow]:
     """
     Scrape the screener.in /market/ comparison table.
 
-    Returns all 188 L4 industries with aggregate metrics:
-    No. of Companies, Total Market Cap, Median Market Cap, Median P/E,
-    Wtd. Avg Sales Growth, Wtd. Avg OPM, Wtd. Avg ROCE, Median 1Y Return.
-
-    Results cached 4 hours. Pass force=True to bypass.
+    Returns all 188 L4 industries with aggregate metrics.
+    Results cached 4 hours in-process. On cache miss, tries disk first
+    before hitting screener.in — avoids re-scraping on every restart.
+    Pass force=True to bypass all caches and re-scrape immediately.
     """
     global _industry_overview_cache, _industry_overview_ts
 
@@ -1106,11 +1406,23 @@ def fetch_industry_overview(force: bool = False) -> list[IndustryOverviewRow]:
             if _industry_overview_cache and (time.time() - _industry_overview_ts) < _MARKET_CACHE_TTL:
                 return _industry_overview_cache
 
+        # Try disk cache before hitting screener
+        disk = _overview_from_disk()
+        if disk and (time.time() - disk[1]) < _MARKET_CACHE_TTL:
+            rows, ts = disk
+            with _industry_overview_lock:
+                _industry_overview_cache = rows
+                _industry_overview_ts    = ts
+            logger.info(f"Industry overview loaded from disk cache ({len(rows)} rows)")
+            return rows
+
     result = _scrape_industry_overview()
 
-    with _industry_overview_lock:
-        _industry_overview_cache = result
-        _industry_overview_ts    = time.time()
+    if result:
+        with _industry_overview_lock:
+            _industry_overview_cache = result
+            _industry_overview_ts    = time.time()
+        _overview_to_disk(result)
 
     return result
 
@@ -1198,7 +1510,8 @@ def fetch_sector_index(force: bool = False) -> list[SectorInfo]:
 
     Returns a list of SectorInfo (L1 sectors) each containing their L2
     sub-industry entries (name + path + stock count).
-    Cached in-process for 4 hours.
+    Cached in-process for 4 hours, persisted to disk to survive restarts.
+    Pass force=True to re-scrape immediately.
     """
     global _sector_index_cache, _sector_index_ts
 
@@ -1207,11 +1520,23 @@ def fetch_sector_index(force: bool = False) -> list[SectorInfo]:
             if _sector_index_cache and (time.time() - _sector_index_ts) < _MARKET_CACHE_TTL:
                 return _sector_index_cache
 
+        # Try disk cache before hitting screener
+        disk = _sectors_from_disk()
+        if disk and (time.time() - disk[1]) < _MARKET_CACHE_TTL:
+            sectors, ts = disk
+            with _sector_index_lock:
+                _sector_index_cache = sectors
+                _sector_index_ts    = ts
+            logger.info(f"Sector index loaded from disk cache ({len(sectors)} sectors)")
+            return sectors
+
     result = _scrape_sector_index()
 
-    with _sector_index_lock:
-        _sector_index_cache = result
-        _sector_index_ts    = time.time()
+    if result:
+        with _sector_index_lock:
+            _sector_index_cache = result
+            _sector_index_ts    = time.time()
+        _sectors_to_disk(result)
 
     return result
 
@@ -1348,23 +1673,34 @@ def _scrape_sector_index() -> list[SectorInfo]:
             return _L1_NAMES.get(l1_code, l1_code), {}
 
     import time as _t
+    import random as _random
 
     l1_codes = sorted(node_map.keys())
     l1_meta: dict[str, tuple[str, dict]] = {}
 
-    # Fetch L1 pages sequentially with a short delay — 12 requests, ~5s total.
-    # This populates L1 sector names and L2 sub-group names + stock counts.
-    for code in l1_codes:
-        _t.sleep(0.4)
-        try:
-            l1_meta[code] = _fetch_l1_names(code)
-        except Exception:
-            l1_meta[code] = (_L1_NAMES.get(code, code), {})
+    # ── Step 2a: fetch all 12 L1 pages concurrently (max 4 in parallel) ──────
+    # Concurrent fetches collapse ~4.8s sequential time to ~1.5s.
+    # A semaphore caps concurrency to 4 so we don't hammer screener with 12
+    # simultaneous requests. Each worker also sleeps 0.2–0.6s before its request.
+    import threading as _th
+    sem = _th.Semaphore(4)
+
+    def _fetch_l1_with_delay(code: str) -> tuple[str, tuple[str, dict]]:
+        _t.sleep(_random.uniform(0.2, 0.6))
+        with sem:
+            try:
+                return code, _fetch_l1_names(code)
+            except Exception:
+                return code, (_L1_NAMES.get(code, code), {})
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        for code, meta in pool.map(_fetch_l1_with_delay, l1_codes):
+            l1_meta[code] = meta
 
     # ── Step 3: fetch L2 pages to get L3 names + counts (best-effort) ────────
     # We fetch L2 pages that have multiple L3 sub-groups needing labels.
     # Uses a requests.Session to share a TCP connection and avoid reconnect overhead.
-    # Each L2 page fetch is paced at 0.5s to respect screener.in rate limits.
+    # Each L2 page fetch is paced at 1.2s to respect screener.in rate limits.
     all_l2_paths: list[tuple[str, str, str]] = []
     for l1_code, l2_map in node_map.items():
         for l2_code, l3_map in l2_map.items():
@@ -1375,7 +1711,7 @@ def _scrape_sector_index() -> list[SectorInfo]:
     with requests.Session() as sess:
         sess.headers.update(_SCREENER_HEADERS)
         for l1c, l2c, p in all_l2_paths:
-            _t.sleep(1.0)   # increased from 0.5s — L2 pages hit 429 at 0.5s
+            _t.sleep(1.2)   # conservative pace — L2 pages 429 at <1.0s
             try:
                 r = sess.get(f"{_SCREENER_BASE}{p}", timeout=20)
                 r.raise_for_status()

@@ -1002,29 +1002,35 @@ export default function PortfolioPage() {
   function loadPortfolio() {
     apiFetch<PortfolioRow[]>("/trades/portfolio").then(rows => {
       setRows(rows);
-      // Fetch fundamentals for all holdings (background) — populates industry map
-      // and also seeds the backend cache for cap_tier on next portfolio load.
+
+      // Fetch fundamentals for all holdings in the background — but stagger
+      // requests at 800 ms intervals so screener.in doesn't 429 us on a burst
+      // of 10+ simultaneous requests.  The backend 24h cache means only the
+      // first load per symbol hits screener; subsequent loads are instant.
       const needsFund = rows.filter(r => r.cap_tier == null);
-      Promise.all(
-        rows.map(r =>
-          apiFetch<{ industry: string | null; sector: string | null; error: string | null }>(
-            `/analysis/${r.symbol}/fundamentals?exchange=${r.exchange}`
-          ).catch(() => null)
-            .then(f => f ? { sym: r.symbol, industry: f.industry, sector: f.sector } : null)
-        )
-      ).then(results => {
+
+      async function fetchFundStaggered() {
         const map: Record<string, { industry: string | null; sector: string | null }> = {};
-        for (const item of results) {
-          if (item) map[item.sym] = { industry: item.industry, sector: item.sector };
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          if (i > 0) await new Promise(res => setTimeout(res, 800));
+          try {
+            const f = await apiFetch<{ industry: string | null; sector: string | null; error: string | null }>(
+              `/analysis/${r.symbol}/fundamentals?exchange=${r.exchange}`
+            );
+            if (f) map[r.symbol] = { industry: f.industry, sector: f.sector };
+          } catch { /* non-fatal */ }
         }
         setFundMap(map);
-        // Re-fetch portfolio if any were unclassified — backend cap_tier now populated
+        // Re-fetch portfolio rows — backend will now have cap_tier persisted
         if (needsFund.length > 0) {
           apiFetch<PortfolioRow[]>("/trades/portfolio")
             .then(setRows)
             .catch(() => null);
         }
-      });
+      }
+
+      fetchFundStaggered();
     }).catch(console.error);
   }
   function loadTrades() {

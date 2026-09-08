@@ -1,6 +1,14 @@
 /**
  * usePriceSocket — connects to the backend WebSocket and keeps a live
- * map of symbol → { ltp, pct_change, lastUpdated } updated every ~60 seconds.
+ * map of symbol → { ltp, pct_change, lastUpdated }.
+ *
+ * Push cadence (controlled server-side):
+ *   • One immediate push on connect (snapshot).
+ *   • During market hours (IST 09:15–15:30 Mon–Fri): every 60 s.
+ *   • Off-hours / weekends: no further pushes until next market open.
+ *     The connection stays alive so the wakeup push at 09:15 is received
+ *     without a reconnect round-trip.
+ *
  * Also exposes a `connected` boolean so the UI can show a stale indicator.
  */
 import { useEffect, useRef, useState } from "react";
