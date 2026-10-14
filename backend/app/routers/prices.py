@@ -245,6 +245,13 @@ async def ws_prices(websocket: WebSocket):
             for q in get_all_cached_quotes()
         ]
 
+    async def _interruptible_sleep(total_secs: float, chunk: float = 5.0) -> None:
+        """Sleep in small chunks so CancelledError fires within `chunk` seconds."""
+        remaining = total_secs
+        while remaining > 0:
+            await asyncio.sleep(min(chunk, remaining))
+            remaining -= chunk
+
     try:
         # ── Initial push — always sent immediately on connect ─────────────────
         await websocket.send_json(_push_payload())
@@ -252,14 +259,14 @@ async def ws_prices(websocket: WebSocket):
         while True:
             if _is_market_open():
                 # Market hours: tick every 60 s
-                await asyncio.sleep(60)
+                await _interruptible_sleep(60)
                 await websocket.send_json(_push_payload())
             else:
                 # Off-hours: sleep until next open, then send one wakeup push
                 sleep_secs = _seconds_until_next_market_open()
-                await asyncio.sleep(sleep_secs)
+                await _interruptible_sleep(sleep_secs)
                 await websocket.send_json(_push_payload())
                 # Now we're at market open — fall through to 60 s loop next iter
 
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, asyncio.CancelledError):
         pass
